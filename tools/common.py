@@ -16,8 +16,8 @@ from server.platform_util import MAC, WINDOWS, hide_console_windows  # noqa: E40
 
 hide_console_windows()  # Windows: ffmpeg, yt-dlp가 콘솔 창을 띄우지 않게
 VODS = Path(os.environ.get("JUNGLE_VODS", ROOT / "vods")).resolve()
-# drawtext 글꼴. Windows 경로의 콜론은 ffmpeg 필터 문법 때문에 이스케이프한다
-FONT = ("C\\:/Windows/Fonts/arial.ttf" if WINDOWS else
+# drawtext 글꼴. Windows 경로의 콜론은 ffmpeg 필터 문법 때문에 작은따옴표 안에서 이스케이프한다(두 단계 파싱)
+FONT = ("'C\\:/Windows/Fonts/arial.ttf'" if WINDOWS else
         "/System/Library/Fonts/Supplemental/Arial.ttf" if MAC else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf")
 # macOS(Apple 실리콘)는 mlx-whisper, 그 밖에는 faster-whisper. 둘 다 large-v3 계열이 팀 보이스, 롤 용어를 잘 알아듣는다
 WHISPER_MODEL = os.environ.get("JUNGLE_WHISPER_MODEL") or (
