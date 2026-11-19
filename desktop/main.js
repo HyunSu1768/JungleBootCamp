@@ -56,7 +56,8 @@ function baseEnv() {
   const ffmpegDir = path.join(VENDOR, "ffmpeg");
   return {
     ...process.env,
-    PATH: [ffmpegDir, localBin, process.env.PATH].join(path.delimiter),
+    // ffmpeg, claude, uv(분석 중 Claude가 `uv run tools/zoom.py`를 실행한다)를 찾을 수 있게
+    PATH: [ffmpegDir, VENDOR, localBin, process.env.PATH].join(path.delimiter),
     UV_PYTHON: "3.12",
     UV_PYTHON_PREFERENCE: "only-managed",
     UV_PYTHON_INSTALL_DIR: path.join(DATA, "python"),

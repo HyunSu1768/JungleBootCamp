@@ -19,6 +19,7 @@ jobs:
   windows:
     runs-on: windows-latest
     env:
+      PYTHONUTF8: "1"   # 앱(desktop/main.js)과 같은 조건: 한글 JSON, 로그를 UTF-8로
       UV_PYTHON: "3.12"
       UV_PYTHON_PREFERENCE: only-managed
     steps:
