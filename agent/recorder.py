@@ -100,7 +100,10 @@ def trim_players(players: list[dict]) -> list[dict]:
 
 # ---------------- 화면 녹화 (ffmpeg) ----------------
 def encoders() -> set[str]:
-    out = subprocess.run(["ffmpeg", "-hide_banner", "-encoders"], capture_output=True, text=True).stdout
+    try:
+        out = subprocess.run(["ffmpeg", "-hide_banner", "-encoders"], capture_output=True, text=True).stdout
+    except OSError:
+        return set()
     return {line.split()[1] for line in out.splitlines() if line.startswith(" V")}
 
 

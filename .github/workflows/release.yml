@@ -78,7 +78,10 @@ jobs:
         shell: pwsh
         env:
           FFMPEG: ${{ github.workspace }}/desktop/vendor/ffmpeg/ffmpeg.exe
-        run: uv run --no-sync python desktop/ci/smoke.py
+        run: |
+          # 앱과 같은 조건: 앱에 든 ffmpeg가 PATH 맨 앞 (desktop/main.js baseEnv)
+          $env:PATH = "${{ github.workspace }}\desktop\vendor\ffmpeg;" + $env:PATH
+          uv run --no-sync python desktop/ci/smoke.py
 
       - name: 설치 파일 빌드, 릴리스
         working-directory: desktop
