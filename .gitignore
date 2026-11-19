@@ -1,0 +1,12 @@
+vods/
+.venv/
+__pycache__/
+data/
+node_modules/
+web/dist/
+desktop/dist/
+desktop/vendor/
+.DS_Store
+*.log
+*.old.json
+kb/quiz_log.json

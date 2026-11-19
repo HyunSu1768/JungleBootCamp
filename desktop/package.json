@@ -1,0 +1,118 @@
+{
+  "name": "jungle-bootcamp",
+  "productName": "JungleBootCamp",
+  "version": "0.1.0",
+  "description": "정글러훈련소: 롤 정글 판단 훈련 (자동 녹화, Claude 분석)",
+  "main": "main.js",
+  "author": "HyunSu1768",
+  "license": "UNLICENSED",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win --publish never",
+    "release": "electron-builder --win --publish always"
+  },
+  "dependencies": {
+    "electron-updater": "^6.6.2"
+  },
+  "build": {
+    "appId": "io.github.hyunsu1768.junglebootcamp",
+    "productName": "JungleBootCamp",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "splash.html",
+      "build/icon.png"
+    ],
+    "extraResources": [
+      {
+        "from": "../server",
+        "to": "backend/server",
+        "filter": [
+          "**/*.py"
+        ]
+      },
+      {
+        "from": "../tools",
+        "to": "backend/tools",
+        "filter": [
+          "**/*.py"
+        ]
+      },
+      {
+        "from": "../agent",
+        "to": "backend/agent",
+        "filter": [
+          "**/*.py"
+        ]
+      },
+      {
+        "from": "../.claude/skills",
+        "to": "backend/.claude/skills"
+      },
+      {
+        "from": "../kb",
+        "to": "backend/kb"
+      },
+      {
+        "from": "../web/dist",
+        "to": "backend/web/dist"
+      },
+      {
+        "from": "../pyproject.toml",
+        "to": "backend/pyproject.toml"
+      },
+      {
+        "from": "../uv.lock",
+        "to": "backend/uv.lock"
+      },
+      {
+        "from": "../SCHEMA.md",
+        "to": "backend/SCHEMA.md"
+      },
+      {
+        "from": "../CLAUDE.md",
+        "to": "backend/CLAUDE.md"
+      },
+      {
+        "from": "vendor",
+        "to": "vendor"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico",
+      "artifactName": "JungleBootCamp-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "shortcutName": "정글러훈련소",
+      "uninstallDisplayName": "정글러훈련소",
+      "deleteAppDataOnUninstall": false
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "HyunSu1768",
+        "repo": "JungleBootCamp",
+        "releaseType": "release"
+      }
+    ]
+  },
+  "devDependencies": {
+    "electron": "^45.4.1",
+    "electron-builder": "^26.18.0"
+  }
+}

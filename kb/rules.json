@@ -1,0 +1,247 @@
+[
+ {
+  "id": "r-flex-pick-before-top-reveal",
+  "category": "밴픽",
+  "when": "내전·대회처럼 팀 안에서 픽을 바꿀 수 있고, 탑·정글이 되는 챔피언 두 개가 남아 있다",
+  "then": "둘을 먼저 뽑고 상대 탑을 본 뒤 라인전이 편한 쪽을 탑에 보낸다",
+  "concepts": [
+   "flex-pick-role-hide"
+  ],
+  "evidence": [
+   {
+    "game_ref": "212755349_클리드1/game4",
+    "ref": "lane-탑",
+    "context": "내전"
+   }
+  ],
+  "exceptions": [
+   "조커픽으로 간 쪽이 주 포지션이 아니면 초반 갱에 약해요. 이 판 판테온은 2:07 자르반 갱에 퍼블을 줬어요."
+  ]
+ },
+ {
+  "id": "r-trade-objective-without-ult",
+  "category": "오브젝트",
+  "when": "오브젝트 앞 싸움에서 우리 진입 궁이 없거나 대치에서 한 턴 늦다",
+  "then": "오브젝트를 주고 같은 시간에 반대편 포탑·오브젝트를 받는다",
+  "concepts": [
+   "objective-trade"
+  ],
+  "evidence": [
+   {
+    "game_ref": "212755349_클리드1/game4",
+    "ref": "o3",
+    "context": "내전"
+   },
+   {
+    "game_ref": "212755349_클리드1/game4",
+    "ref": "o5",
+    "context": "내전"
+   },
+   {
+    "game_ref": "212755349_클리드1/game6",
+    "ref": "o1",
+    "context": "내전"
+   },
+   {
+    "game_ref": "212755349_클리드1/game6",
+    "ref": "f3",
+    "context": "내전"
+   },
+   {
+    "game_ref": "212755349_클리드1/game4",
+    "ref": "t4",
+    "context": "내전"
+   }
+  ],
+  "exceptions": [
+   "상대가 영혼 포인트면 교환하지 않아요(r-contest-soul-point)."
+  ]
+ },
+ {
+  "id": "r-contest-soul-point",
+  "category": "오브젝트",
+  "when": "상대가 용 3개로 영혼 포인트이고 대치가 불리하다",
+  "then": "웨이브를 밀고 턴을 맞춰 용 앞에서 먼저 싸운다. 교전이 기울어도 정글은 강타 각을 끝까지 본다",
+  "concepts": [
+   "soul-point-defense"
+  ],
+  "evidence": [
+   {
+    "game_ref": "212755349_클리드1/game4",
+    "ref": "f4",
+    "context": "내전"
+   },
+   {
+    "game_ref": "212755349_클리드1/game4",
+    "ref": "t7",
+    "context": "내전"
+   }
+  ],
+  "exceptions": []
+ },
+ {
+  "id": "r-engage-after-durability",
+  "category": "교전",
+  "when": "사거리가 짧은 돌진 조합이고, 이니시 담당이 아직 방어 아이템을 덜 갖췄다",
+  "then": "먼저 박지 말고 오브젝트 교환으로 시간을 번다. 단단해진 뒤엔 대치하지 말고 먼저 건다",
+  "concepts": [
+   "engage-timing-by-durability"
+  ],
+  "evidence": [
+   {
+    "game_ref": "212755349_클리드1/game4",
+    "ref": "f5",
+    "context": "내전"
+   },
+   {
+    "game_ref": "212755349_클리드1/game4",
+    "ref": "t6",
+    "context": "내전"
+   }
+  ],
+  "exceptions": [
+   "상대가 오브젝트를 치는 순간처럼 체력·스킬이 빠졌으면 덜 단단해도 들어가요."
+  ]
+ },
+ {
+  "id": "r-call-follow-up-before-engage",
+  "category": "교전",
+  "when": "진입 정글 궁으로 노플 핵심 딜러를 묶을 각이 났다",
+  "then": "들어가기 전에 후속 CC 담당을 콜로 정하고, 아군 이동형 궁(칼리스타 궁 등)은 서포터가 걸어서 못 닿을 때만 쓴다",
+  "concepts": [
+   "engage-follow-up-assignment"
+  ],
+  "evidence": [
+   {
+    "game_ref": "212755349_클리드1/game4",
+    "ref": "f3",
+    "context": "내전"
+   },
+   {
+    "game_ref": "212755349_클리드1/game4",
+    "ref": "t6",
+    "context": "내전"
+   }
+  ],
+  "exceptions": []
+ },
+ {
+  "id": "r-punish-after-objective",
+  "category": "교전",
+  "when": "사거리 열세·돌진 조합이 오브젝트 앞 대치 중이고 상대가 오브젝트를 치기 시작했다",
+  "then": "오브젝트는 주고, 처치 직후 체력·스킬이 빠진 상대에게 진입 궁으로 덮친다",
+  "concepts": [
+   "post-objective-punish"
+  ],
+  "evidence": [
+   {
+    "game_ref": "212755349_클리드1/game4",
+    "ref": "f5",
+    "context": "내전"
+   },
+   {
+    "game_ref": "212755349_클리드1/game4",
+    "ref": "f2",
+    "context": "내전"
+   },
+   {
+    "game_ref": "212755349_클리드1/game4",
+    "ref": "t8",
+    "context": "내전"
+   }
+  ],
+  "exceptions": []
+ },
+ {
+  "id": "r-join-skirmish-over-farm",
+  "category": "턴 운영",
+  "when": "옆 라인에서 2대2 각이 나고 상대 정글이 그 근처에서 마지막으로 보였다",
+  "then": "반대편 캠프를 먹지 말고 그 라인 쪽에 붙거나, 라이너에게 빠지라고 콜한다",
+  "concepts": [
+   "skirmish-proximity-over-farm"
+  ],
+  "evidence": [
+   {
+    "game_ref": "212755349_클리드1/game4",
+    "ref": "t2",
+    "context": "내전"
+   }
+  ],
+  "exceptions": []
+ },
+ {
+  "id": "r-dragon-needs-mid-prio",
+  "category": "오브젝트",
+  "when": "첫 용·유충 앞인데 상대 미드가 먼저 6레벨이고 우리 미드가 라인을 못 민다(바텀만 앞선다)",
+  "then": "오브젝트를 시작하지 않는다. 주는 대신 반대편 캠프·바위게·탑을 받고, 쳐야 하면 미드가 먼저 밀고 내려올 수 있을 때만 시작한다",
+  "concepts": [
+   "mid-priority-for-objective",
+   "objective-trade"
+  ],
+  "evidence": [
+   {
+    "game_ref": "212755349_클리드1/game6",
+    "ref": "o1",
+    "context": "내전"
+   }
+  ],
+  "exceptions": []
+ },
+ {
+  "id": "r-call-enemy-jungle-for-mid",
+  "category": "시야",
+  "when": "미드가 '상대 정글 때문에 라인을 못 민다'고 하고, 정글은 오브젝트를 보려 한다",
+  "then": "상대 정글 마지막 위치·시각과 '지금 밀어도 된다/안 된다'를 먼저 콜한다. 서로 인식이 다르면 오브젝트를 미룬다",
+  "concepts": [
+   "jungle-mid-info-sync",
+   "mid-priority-for-objective"
+  ],
+  "evidence": [
+   {
+    "game_ref": "212755349_클리드1/game6",
+    "ref": "f1",
+    "context": "내전"
+   }
+  ],
+  "exceptions": []
+ },
+ {
+  "id": "r-recall-before-objective",
+  "category": "턴 운영",
+  "when": "오브젝트 스폰 60~90초 전, 1100골드 이상을 들고 아직 귀환하지 않았다",
+  "then": "귀환해 핵심 부품을 사고 나온다. 시간이 안 되면 그 오브젝트는 주고 다음 사이클에 맞춘다",
+  "concepts": [
+   "objective-recall-timing"
+  ],
+  "evidence": [
+   {
+    "game_ref": "212755349_클리드1/game6",
+    "ref": "t1",
+    "context": "내전"
+   },
+   {
+    "game_ref": "212755349_클리드1/game6",
+    "ref": "f3",
+    "context": "내전"
+   }
+  ],
+  "exceptions": []
+ },
+ {
+  "id": "r-gank-bot-no-flash",
+  "category": "갱킹",
+  "when": "상대 바텀 듀오 점멸이 둘 다 빠졌고, 상대 정글이 반대편에서 마지막으로 보였다",
+  "then": "다음 귀환 전까지 바텀을 갱 1순위로 본다. 경기 전에 갱이 애매하다고 본 라인(애쉬 W 등)이어도 다시 계산한다",
+  "concepts": [
+   "spell-down-gank-window"
+  ],
+  "evidence": [
+   {
+    "game_ref": "212755349_클리드1/game4",
+    "ref": "t2",
+    "context": "내전"
+   }
+  ],
+  "exceptions": []
+ }
+]

@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
+<title>정글러훈련소</title>
+<style>
+  :root { color-scheme: light; }
+  body { margin: 0; height: 100vh; display: flex; align-items: center; justify-content: center; background: #fff;
+         font-family: "Pretendard", "Malgun Gothic", system-ui, sans-serif; color: #191f28; }
+  .box { text-align: center; max-width: 440px; padding: 24px; }
+  .mark { width: 64px; height: 64px; border-radius: 18px; background: #3182f6; color: #fff; font-size: 34px; font-weight: 800;
+          display: inline-flex; align-items: center; justify-content: center; }
+  h1 { font-size: 22px; margin: 20px 0 8px; }
+  #msg { font-size: 15px; color: #6b7684; line-height: 1.6; white-space: pre-wrap; word-break: break-all; min-height: 48px; }
+  .bar { height: 4px; border-radius: 2px; background: #f2f4f6; overflow: hidden; margin-top: 20px; }
+  .bar i { display: block; height: 100%; width: 40%; background: #3182f6; border-radius: 2px; animation: slide 1.4s ease-in-out infinite; }
+  @keyframes slide { 0% { margin-left: -40%; } 100% { margin-left: 100%; } }
+</style>
+</head>
+<body>
+  <div class="box">
+    <div class="mark">정</div>
+    <h1>정글러훈련소를 준비하고 있어요</h1>
+    <div id="msg">잠시만 기다려 주세요</div>
+    <div class="bar"><i></i></div>
+  </div>
+  <script>
+    window.desktop && window.desktop.onSplash((m) => { document.getElementById("msg").textContent = m; });
+  </script>
+</body>
+</html>
