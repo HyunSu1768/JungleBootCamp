@@ -24,6 +24,8 @@ jobs:
       UV_PYTHON_PREFERENCE: only-managed
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
 
       - uses: actions/setup-node@v4
         with:
@@ -83,10 +85,36 @@ jobs:
           $env:PATH = "${{ github.workspace }}\desktop\vendor\ffmpeg;" + $env:PATH
           uv run --no-sync python desktop/ci/smoke.py
 
-      - name: 설치 파일 빌드, 릴리스
+      # 초안 릴리스를 먼저 만들고(파일을 동시에 올릴 때 릴리스가 두 번 생기는 문제 방지),
+      # 설치 파일, latest.yml, blockmap을 다 올린 뒤에 공개한다. 설치된 앱은 공개된 릴리스만 본다
+      - name: 초안 릴리스 만들기
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "v$VERSION" --draft --target "$GITHUB_SHA" --title "v$VERSION" \
+            --notes "$(git log -1 --pretty=%B | sed '/^Co-Authored-By/d')"
+
+      - name: 설치 파일 빌드, 올리기
         working-directory: desktop
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           npm ci
           npx electron-builder --win --publish always
+
+      - name: 릴리스 공개
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view "v$VERSION" --json assets -q '.assets[].name'
+          gh release view "v$VERSION" --json assets -q '.assets[].name' | grep -qx latest.yml
+          gh release edit "v$VERSION" --draft=false --latest
+
+      - name: 실패하면 초안 정리
+        if: failure()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release delete "v$VERSION" --yes --cleanup-tag || true
