@@ -23,6 +23,7 @@ import argparse
 import json
 import shutil
 import sys
+import threading
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -76,6 +77,41 @@ def locate(vdir: Path, info: dict, start: float, end: float) -> list[tuple[int |
 
 def ffmpeg(args: list[str]) -> None:
     run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", *args])
+
+
+def keyframe_gap(video: Path, seconds: int = 40) -> float:
+    """앞부분 키프레임 사이 최대 간격(초). 짧으면 키프레임만 디코딩해 프레임을 뽑을 수 있다(4배쯤 빠름)."""
+    out = run(["ffprobe", "-v", "error", "-select_streams", "v", "-skip_frame", "nokey", "-show_entries", "frame=pts_time",
+               "-of", "csv=p=0", "-read_intervals", f"%+{seconds}", str(video)], quiet=True)
+    ts = []
+    for x in out.split():
+        try:
+            ts.append(float(x.strip(",")))
+        except ValueError:
+            pass
+    gaps = [b - a for a, b in zip(ts, ts[1:])]
+    return max(gaps) if len(gaps) >= 3 else 99.0
+
+
+class Background(threading.Thread):
+    """ffmpeg 작업을 받아쓰기와 동시에 돌린다. 안에서 난 오류(die 포함)는 join_or_raise에서 다시 던진다."""
+
+    def __init__(self, fn, *args):
+        super().__init__(daemon=True)
+        self.fn, self.args, self.error = fn, args, None
+        self.result = None
+
+    def run(self) -> None:
+        try:
+            self.result = self.fn(*self.args)
+        except BaseException as e:  # noqa: BLE001  SystemExit(die)도 잡는다
+            self.error = e
+
+    def join_or_raise(self):
+        self.join()
+        if self.error:
+            raise self.error
+        return self.result
 
 
 def faststart(video: Path) -> None:
@@ -138,6 +174,22 @@ def download(url: str, segs: list[tuple[int | None, float, float]], out: Path, h
         lst.unlink()
 
 
+def cut_from_scan(vdir: Path, a: float, b: float, out: Path) -> bool:
+    """판 찾기 때 받아 둔 저화질 전체 영상(scan/)에서 구간을 잘라 쓴다. 다시 받지 않아도 돼서 빠르다."""
+    meta = vdir / "scan" / "scan.json"
+    if not meta.exists():
+        return False
+    for p in json.loads(meta.read_text()).get("parts", []):
+        src = vdir / "scan" / p.get("file", "")
+        ps = float(p.get("start", 0))
+        if src.exists() and ps <= a and b <= ps + float(p.get("duration", 0)):
+            if not stream_info(src)["audio"]:
+                return False
+            ffmpeg(["-ss", f"{a - ps:.3f}", "-to", f"{b - ps:.3f}", "-i", str(src), "-c", "copy", "-movflags", "+faststart", str(out)])
+            return out.exists()
+    return False
+
+
 def extract_reviews(url: str, vdir: Path, info: dict, gdir: Path, name: str, skip_transcribe: bool) -> list[dict]:
     """games.json에 적힌 이 판의 리플레이 피드백 구간을 받아 review/에 자료를 만든다."""
     games_json = vdir / "games.json"
@@ -159,8 +211,9 @@ def extract_reviews(url: str, vdir: Path, info: dict, gdir: Path, name: str, ski
         video = rdir / f"seg{i}.mp4"
         if not video.exists():
             print(f"리플레이 피드백 구간 {i}: {hms(a)} ~ {hms(b)}", flush=True)
-            # 리플레이는 인게임 시계와 장면만 읽으면 돼서 720p로 충분하다
-            download(url, locate(vdir, info, a, b), video, 720)
+            # 리플레이는 인게임 시계와 장면만 읽으면 돼서 저화질로 충분하다. 스캔 영상이 있으면 거기서 자른다
+            if is_local(url) or not cut_from_scan(vdir, a, b, video):
+                download(url, locate(vdir, info, a, b), video, 720)
         if not video.exists():
             print(f"리플레이 구간 {i} 다운로드 실패, 건너뜀", flush=True)
             continue
@@ -175,22 +228,80 @@ def extract_reviews(url: str, vdir: Path, info: dict, gdir: Path, name: str, ski
             # 20초 간격 4x3 = 4분짜리 시트
             ffmpeg(["-i", str(video), "-vf", f"fps=1/20,scale=480:-2,{drawtext_clock(a, 22)},tile=4x3",
                     "-q:v", "4", str(rdir / "sheets" / f"s{i}_%03d.jpg")])
-        md = rdir / f"seg{i}.md"
-        if not skip_transcribe and not md.exists():
-            audio = rdir / f"seg{i}.m4a"
-            ffmpeg(["-i", str(video), "-vn", "-ac", "1", "-c:a", "aac", "-b:a", "64k", str(audio)])
-            transcribe(audio, a, md, rdir / f"seg{i}.json")
+        if not skip_transcribe:
+            transcribe_review(rdir, i, a)
         sheets = sorted(rdir.joinpath("sheets").glob(f"s{i}_*.jpg"))
         out.append({"from": hms(a), "to": hms(b), "note": reviews[i - 1].get("note"),
                     "sheets": [{"file": f"review/sheets/{f.name}", "from": hms(a + k * 240),
                                 "to": hms(min(a + (k + 1) * 240, b))} for k, f in enumerate(sheets)]})
-    # 구간별 받아쓰기를 하나로
-    parts = [f"## 리플레이 구간 {i} ({r['from']} ~ {r['to']})\n" + (rdir / f"seg{i}.md").read_text()
-             for i, r in enumerate(out, 1) if (rdir / f"seg{i}.md").exists()]
-    if parts:
-        (rdir / "transcript.md").write_text("\n".join(parts))
+    join_review_transcripts(rdir, out)
     (rdir / "review.json").write_text(json.dumps(want))
     return out
+
+
+def transcribe_review(rdir: Path, i: int, a: float) -> None:
+    md, video = rdir / f"seg{i}.md", rdir / f"seg{i}.mp4"
+    if md.exists() or not video.exists():
+        return
+    audio = rdir / f"seg{i}.m4a"
+    ffmpeg(["-i", str(video), "-vn", "-c:a", "copy", str(audio)])
+    transcribe(audio, a, md, rdir / f"seg{i}.json")
+
+
+def join_review_transcripts(rdir: Path, reviews: list[dict]) -> None:
+    """구간별 받아쓰기를 하나로"""
+    parts = [f"## 리플레이 구간 {i} ({r['from']} ~ {r['to']})\n" + (rdir / f"seg{i}.md").read_text()
+             for i, r in enumerate(reviews, 1) if (rdir / f"seg{i}.md").exists()]
+    if parts:
+        (rdir / "transcript.md").write_text("\n".join(parts))
+
+
+def build_images(gdir: Path, video: Path, start: float, vstart: float, game_off: float, game_dur: float,
+                 draft_start: float | None, crop: str, x: float, y: float, w: float, h: float,
+                 frame_interval: int, minimap_interval: int) -> None:
+    for sub in ("frames", "minimap", "overview"):
+        d = gdir / sub
+        d.mkdir(exist_ok=True)
+        for old in d.glob("*.jpg"):
+            old.unlink()
+    # 키프레임이 2초 안팎으로 촘촘하면 키프레임만 디코딩한다. 5초 간격 프레임에는 이걸로 충분하고 4배쯤 빠르다
+    fast = ["-skip_frame", "nokey"] if keyframe_gap(video) <= 2.5 else []
+    # 한 번 디코딩해서 세 종류를 같이 만든다
+    #   frames/   5초 간격 전체 화면 (파일명 = VOD 시각)
+    #   minimap/  5초 간격 미니맵 시트 6x5칸. 아이콘이 작아서 원본 해상도 그대로 자른다
+    #   overview/ 30초 간격 4x4 = 8분 흐름 시트
+    graph = (
+        "[0:v]split=3[a][b][c];"
+        f"[a]fps=1/{frame_interval},scale=1280:-2,{drawtext_clock(start, 26)}[fa];"
+        f"[b]fps=1/{minimap_interval},{crop},{drawtext_clock(start, 20)},tile=6x5[fb];"
+        f"[c]fps=1/30,scale=480:-2,{drawtext_clock(start, 22)},tile=4x4[fc]"
+    )
+    ffmpeg([*fast, "-ss", f"{game_off:.3f}", "-i", str(video), "-filter_complex", graph,
+            "-map", "[fa]", "-q:v", "3", str(gdir / "frames" / "%05d.jpg"),
+            "-map", "[fb]", "-q:v", "3", str(gdir / "minimap" / "sheet_%03d.jpg"),
+            "-map", "[fc]", "-q:v", "4", str(gdir / "overview" / "sheet_%03d.jpg")])
+    for i, f in enumerate(sorted((gdir / "frames").glob("*.jpg"))):
+        f.rename(f.with_name(hms(start + i * frame_interval).replace(":", "-") + ".jpg"))
+
+    # 밴픽: 픽창 구간을 2초 간격 원본 해상도로 (밴, 픽 순서, 룬, 스펠 글씨를 읽어야 해서)
+    if draft_start is not None:
+        ddir = gdir / "draft"
+        (ddir / "frames").mkdir(parents=True, exist_ok=True)
+        for old in list((ddir / "frames").glob("*.jpg")) + list(ddir.glob("sheet_*.jpg")):
+            old.unlink()
+        # 4초 간격 4x3 = 48초짜리 시트로 픽창 흐름 훑기
+        ffmpeg([*fast, "-t", f"{game_off:.3f}", "-i", str(video), "-filter_complex",
+                f"[0:v]split=2[a][b];[a]fps=1/2,{drawtext_clock(vstart, 30)}[fa];"
+                f"[b]fps=1/4,scale=640:-2,{drawtext_clock(vstart, 20)},tile=4x3[fb]",
+                "-map", "[fa]", "-q:v", "2", str(ddir / "frames" / "%05d.jpg"),
+                "-map", "[fb]", "-q:v", "3", str(ddir / "sheet_%03d.jpg")])
+        for i, f in enumerate(sorted((ddir / "frames").glob("*.jpg"))):
+            f.rename(f.with_name(hms(vstart + i * 2).replace(":", "-") + ".jpg"))
+
+    # 미니맵 자르기 영역 확인용
+    ffmpeg(["-ss", f"{game_off + min(game_dur / 2, 600):.0f}", "-i", str(video), "-frames:v", "1", "-vf",
+            f"drawbox=x=iw*{x}:y=ih*{y}:w=iw*{w}:h=ih*{h}:color=red:t=4,scale=1280:-2",
+            str(gdir / "minimap_check.jpg")])
 
 
 def main() -> None:
@@ -257,49 +368,19 @@ def main() -> None:
     # 예전 설정(미니맵 10초 간격 등)으로 만든 이미지면 다시 만든다
     old_meta = json.loads((gdir / "game.json").read_text()) if (gdir / "game.json").exists() else {}
     stale = bool(old_meta) and old_meta.get("minimap_interval") != args.minimap_interval
-    if args.redo_images or stale or not (gdir / "frames").exists():
-        for sub in ("frames", "minimap", "overview"):
-            d = gdir / sub
-            d.mkdir(exist_ok=True)
-            for old in d.glob("*.jpg"):
-                old.unlink()
-
-        # 5초 간격 전체 화면 → 파일명을 VOD 시각으로
-        ffmpeg([*game_in, "-vf",
-                f"fps=1/{args.frame_interval},scale=1280:-2,{drawtext_clock(start, 26)}",
-                "-q:v", "3", str(gdir / "frames" / "%05d.jpg")])
-        for i, f in enumerate(sorted((gdir / "frames").glob("*.jpg"))):
-            f.rename(f.with_name(hms(start + i * args.frame_interval).replace(":", "-") + ".jpg"))
-
-        # 미니맵 시트: 기본 5초 간격, 6x5칸. 아이콘이 작아서 원본 해상도 그대로 자른다
-        ffmpeg([*game_in, "-vf",
-                f"fps=1/{args.minimap_interval},{crop},{drawtext_clock(start, 20)},tile=6x5",
-                "-q:v", "3", str(gdir / "minimap" / "sheet_%03d.jpg")])
-
-        # 흐름 시트: 30초 간격, 4x4 = 8분
-        ffmpeg([*game_in, "-vf",
-                f"fps=1/30,scale=480:-2,{drawtext_clock(start, 22)},tile=4x4",
-                "-q:v", "4", str(gdir / "overview" / "sheet_%03d.jpg")])
-
-        # 밴픽: 픽창 구간을 2초 간격 원본 해상도로 (밴, 픽 순서, 룬, 스펠 글씨를 읽어야 해서)
-        if draft_start is not None:
-            ddir = gdir / "draft"
-            (ddir / "frames").mkdir(parents=True, exist_ok=True)
-            for old in list((ddir / "frames").glob("*.jpg")) + list(ddir.glob("sheet_*.jpg")):
-                old.unlink()
-            draft_in = ["-t", f"{game_off:.3f}", "-i", str(video)]
-            ffmpeg([*draft_in, "-vf", f"fps=1/2,{drawtext_clock(vstart, 30)}",
-                    "-q:v", "2", str(ddir / "frames" / "%05d.jpg")])
-            for i, f in enumerate(sorted((ddir / "frames").glob("*.jpg"))):
-                f.rename(f.with_name(hms(vstart + i * 2).replace(":", "-") + ".jpg"))
-            # 4초 간격, 4x3 = 48초짜리 시트로 픽창 흐름 훑기
-            ffmpeg([*draft_in, "-vf", f"fps=1/4,scale=640:-2,{drawtext_clock(vstart, 20)},tile=4x3",
-                    "-q:v", "3", str(ddir / "sheet_%03d.jpg")])
-
-        # 미니맵 자르기 영역 확인용
-        ffmpeg(["-ss", f"{game_off + min(game_dur / 2, 600):.0f}", "-i", str(video), "-frames:v", "1", "-vf",
-                f"drawbox=x=iw*{x}:y=ih*{y}:w=iw*{w}:h=ih*{h}:color=red:t=4,scale=1280:-2",
-                str(gdir / "minimap_check.jpg")])
+    make_images = args.redo_images or stale or not (gdir / "frames").exists()
+    # 받아쓰기(GPU)와 이미지 만들기(CPU)를 동시에 돌린다
+    images = Background(build_images, gdir, video, start, vstart, game_off, game_dur, draft_start, crop, x, y, w, h,
+                        args.frame_interval, args.minimap_interval) if make_images else None
+    if images:
+        images.start()
+    # 5초 간격이 놓친 상대 챔피언 등장(1초마다 미니맵 확인)도 동시에
+    from sightings import build as build_sightings
+    sightings = Background(build_sightings, gdir, video, start, game_off, args.minimap, args.minimap_interval)
+    sightings.start()
+    # 리플레이 피드백 영상도 동시에 준비한다(받아쓰기는 아래에서 차례로)
+    reviews_job = Background(extract_reviews, args.url, vdir, info, gdir, args.name, True)
+    reviews_job.start()
 
     if not args.skip_transcribe and not (gdir / "transcript.md").exists() and not stream_info(video)["audio"]:
         # 소리 없이 녹화한 내 게임: 받아쓰기 없이 화면과 게임 기록(live.json)으로 분석한다
@@ -308,8 +389,23 @@ def main() -> None:
     if not args.skip_transcribe and not (gdir / "transcript.md").exists():
         audio = gdir / "audio.m4a"
         if not audio.exists():
-            ffmpeg(["-i", str(video), "-vn", "-ac", "1", "-c:a", "aac", "-b:a", "64k", str(audio)])
+            # 다시 인코딩하지 않고 소리만 꺼낸다(몇 초)
+            ffmpeg(["-i", str(video), "-vn", "-c:a", "copy", str(audio)])
         transcribe(audio, vstart, gdir / "transcript.md", gdir / "transcript.json")
+
+    reviews = reviews_job.join_or_raise()
+    if not args.skip_transcribe and reviews:
+        rdir = gdir / "review"
+        for i, r in enumerate(reviews, 1):
+            transcribe_review(rdir, i, parse_time(r["from"]))
+        join_review_transcripts(rdir, reviews)
+    if images:
+        images.join_or_raise()
+    try:
+        sighting_sheets = sightings.join_or_raise()
+    except Exception as e:  # noqa: BLE001  보조 자료라 실패해도 분석은 한다
+        print(f"상대 등장 찾기 실패, 건너뜀: {e}", flush=True)
+        sighting_sheets = []
 
     def ranges(sub: str, span: int) -> list[dict]:
         out = []
@@ -318,14 +414,13 @@ def main() -> None:
                         "to": hms(min(start + (i + 1) * span, start + game_dur))})
         return out
 
-    reviews = extract_reviews(args.url, vdir, info, gdir, args.name, args.skip_transcribe)
-
     manifest = {
         "url": args.url, "name": args.name,
         "draft_start": hms(draft_start) if draft_start is not None else None,
         "video_start": hms(vstart), "start": hms(start), "end": hms(vstart + dur),
         "part": part, "minimap_crop": args.minimap, "minimap_interval": args.minimap_interval, "frame_interval": args.frame_interval,
         "minimap_sheets": ranges("minimap", 30 * args.minimap_interval), "overview_sheets": ranges("overview", 480),
+        "sighting_sheets": sighting_sheets,
         "reviews": reviews,
         "note": "구간 다운로드는 키프레임 기준이라 VOD 시각이 몇 초 어긋날 수 있다. 정확한 시각은 화면의 인게임 시계를 따른다.",
     }

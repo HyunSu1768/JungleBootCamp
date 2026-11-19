@@ -10,4 +10,5 @@ dependencies = [
     # 받아쓰기: Apple 실리콘은 mlx, 그 밖(Windows)은 faster-whisper
     "mlx-whisper>=0.4.3; sys_platform == 'darwin' and platform_machine == 'arm64'",
     "faster-whisper>=1.1.0; sys_platform != 'darwin'",
+    "opencv-python-headless>=4.10",
 ]

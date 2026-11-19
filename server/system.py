@@ -26,7 +26,8 @@ router = APIRouter()
 DESKTOP = os.environ.get("JUNGLE_DESKTOP") == "1"
 DATA = db.DB_PATH.parent
 SETTINGS = DATA / "settings.json"
-DEFAULTS = {"recording": True, "screen": "0", "audio": None, "onboarded": False}
+# analysis: fast(빠르게, Claude effort low) | deep(꼼꼼하게, medium). 분석 시간 대부분이 Claude가 생각하는 시간이라 이걸로 조절한다
+DEFAULTS = {"recording": True, "screen": "0", "audio": None, "onboarded": False, "analysis": "fast"}
 
 
 # ================= 앱, 설정 =================

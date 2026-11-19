@@ -64,7 +64,19 @@ import recorder  # noqa: E402
 cmds = recorder.capture_cmds(tmp / "o.mkv", "0", None, 30, 1080, "6M")
 check("녹화 명령 후보", len(cmds) >= 2, f"{len(cmds)}개")
 
-# 5. 받아쓰기 라이브러리
+# 5. 미니맵 상대 등장 찾기 (OpenCV)
+import numpy as np  # noqa: E402
+
+import sightings  # noqa: E402
+
+img = np.zeros((sightings.SIZE, sightings.SIZE, 3), np.uint8)
+import cv2  # noqa: E402
+
+cv2.circle(img, (120, 140), 12, (0, 0, 255), 2)  # 빨간 테두리 아이콘 하나
+found = sightings.enemies(img)
+check("미니맵 상대 아이콘 찾기", len(found) == 1, str(found))
+
+# 6. 받아쓰기 라이브러리
 import importlib.util  # noqa: E402
 
 check("faster-whisper", bool(importlib.util.find_spec("faster_whisper")) or not platform_util.WINDOWS)

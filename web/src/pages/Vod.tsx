@@ -42,7 +42,9 @@ export default function VodPage() {
   const others = v.game_list.filter((g) => !g.jungle);
 
   const row = (g: GameEntry) => {
-    const running = isActive(g.job);
+    // '지식 정리' 단계면 분석은 이미 나와 있어서 볼 수 있다
+    const background = isActive(g.job) && g.job?.steps.find((s) => s.status === "running")?.name === "지식 정리";
+    const running = isActive(g.job) && !background;
     const failed = g.job?.status === "error" && !g.analyzed;
     const desc = [g.mode, g.minutes ? `${g.minutes}분` : null, `VOD ${g.start}`, g.reviews?.length ? "리플레이 피드백 있음" : null].filter(Boolean).join(" · ");
     const inner = (
@@ -68,7 +70,7 @@ export default function VodPage() {
       return (
         <Link key={g.n} to={`/vods/${encodeURIComponent(dir)}/${g.n}`} className="item-card">
           {inner}
-          <div className="item-action"><span className="badge badge-green">분석 완료</span><span className="chev">›</span></div>
+          <div className="item-action"><span className="badge badge-green">{background ? "분석 나옴" : "분석 완료"}</span><span className="chev">›</span></div>
         </Link>
       );
     }

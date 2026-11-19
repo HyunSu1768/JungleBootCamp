@@ -443,7 +443,7 @@ export interface MyStats {
 }
 
 /* ---------- 앱, Claude 연결 ---------- */
-export interface DeviceSettings { recording: boolean; screen: string; audio: string | null; onboarded: boolean }
+export interface DeviceSettings { recording: boolean; screen: string; audio: string | null; onboarded: boolean; analysis?: "fast" | "deep" }
 export interface AppInfo {
   version: string;
   desktop: boolean;

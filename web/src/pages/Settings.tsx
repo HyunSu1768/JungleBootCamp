@@ -27,16 +27,39 @@ export default function Settings() {
           {TIERS.map((t) => <button key={t} className={`chip ${p.tier === t ? "on" : ""}`} onClick={async () => { await api.saveMe({ tier: t }); me.reload(); }}>{t}</button>)}
         </div>
         <label className="setting" style={{ marginTop: 16 }}>
-          <div><b>내 정글 판 자동 분석</b><div className="small">판마다 Claude 사용량이 들어요(35분 판 기준 15~20분 분석).</div></div>
+          <div><b>내 정글 판 자동 분석</b><div className="small">판이 끝나면 바로 분석해요. 판마다 Claude 사용량이 들어요.</div></div>
           <input type="checkbox" className="switch" checked={(p as { auto_analyze?: number }).auto_analyze !== 0}
             onChange={async (e) => { await api.saveMe({ auto_analyze: e.target.checked ? 1 : 0 } as never); me.reload(); }} />
         </label>
+      </section>
+      <section className="section">
+        <h2 className="section-title">분석 방식</h2>
+        <AnalysisMode value={app.data.settings.analysis ?? "fast"} onSaved={app.reload} />
       </section>
       <section className="section">
         <h2 className="section-title">앱 정보</h2>
         <Updates version={app.data.version} />
         <p className="caption">데이터 폴더: {app.data.data_dir}</p>
       </section>
+    </div>
+  );
+}
+
+const MODES = [
+  { id: "fast", title: "빠르게", desc: "35분 판 기준 Claude 분석 4분 안팎. 판단 포인트는 턴마다 2개쯤이에요." },
+  { id: "deep", title: "꼼꼼하게", desc: "8분 안팎. 판단 포인트가 더 많고 상황 설명이 더 자세해요. 사용량도 2배쯤 들어요." },
+] as const;
+
+function AnalysisMode({ value, onSaved }: { value: string; onSaved: () => void }) {
+  return (
+    <div className="option-list">
+      {MODES.map((m) => (
+        <button key={m.id} className={`option-card ${value === m.id ? "on" : ""}`}
+          onClick={async () => { await api.saveSettings({ analysis: m.id }); onSaved(); }}>
+          <b>{m.title}</b>
+          <span className="small">{m.desc}</span>
+        </button>
+      ))}
     </div>
   );
 }
