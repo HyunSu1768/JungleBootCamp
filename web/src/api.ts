@@ -211,6 +211,8 @@ export interface GameDetail {
   game: GameEntry;
   meta: Record<string, unknown>;
   analysis: Analysis;
+  has_video?: boolean;   // 공유받은 판은 영상이 없다
+  video_job?: Job | null;
 }
 
 export interface Concept {
@@ -291,6 +293,7 @@ export const api = {
   redetect: (dir: string) => req<Job>(`/api/vods/${encodeURIComponent(dir)}/redetect`, { method: "POST" }),
   analyze: (dir: string, n: number) =>
     req<Job>(`/api/vods/${encodeURIComponent(dir)}/games/${n}/analyze`, { method: "POST" }),
+  fetchVideo: (dir: string, n: number) => req<Job>(`/api/vods/${encodeURIComponent(dir)}/games/${n}/video`, { method: "POST" }),
   game: (dir: string, n: number) => req<GameDetail>(`/api/vods/${encodeURIComponent(dir)}/games/${n}`),
   job: (id: string) => req<Job>(`/api/jobs/${id}`),
   cancelJob: (id: string) => req<Job>(`/api/jobs/${id}/cancel`, { method: "POST" }),

@@ -1,4 +1,4 @@
-vods/
+/vods/
 .venv/
 __pycache__/
 data/

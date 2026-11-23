@@ -1,0 +1,192 @@
+{
+ "url": "https://vod.sooplive.com/player/212755349",
+ "name": "game1",
+ "draft_start": "1:57:00",
+ "video_start": "1:57:00",
+ "start": "2:05:00",
+ "end": "2:32:15",
+ "part": 1,
+ "minimap_crop": "0.82,0.68,0.18,0.32",
+ "minimap_interval": 5,
+ "frame_interval": 5,
+ "minimap_sheets": [
+  {
+   "file": "minimap/sheet_001.jpg",
+   "from": "2:05:00",
+   "to": "2:07:30"
+  },
+  {
+   "file": "minimap/sheet_002.jpg",
+   "from": "2:07:30",
+   "to": "2:10:00"
+  },
+  {
+   "file": "minimap/sheet_003.jpg",
+   "from": "2:10:00",
+   "to": "2:12:30"
+  },
+  {
+   "file": "minimap/sheet_004.jpg",
+   "from": "2:12:30",
+   "to": "2:15:00"
+  },
+  {
+   "file": "minimap/sheet_005.jpg",
+   "from": "2:15:00",
+   "to": "2:17:30"
+  },
+  {
+   "file": "minimap/sheet_006.jpg",
+   "from": "2:17:30",
+   "to": "2:20:00"
+  },
+  {
+   "file": "minimap/sheet_007.jpg",
+   "from": "2:20:00",
+   "to": "2:22:30"
+  },
+  {
+   "file": "minimap/sheet_008.jpg",
+   "from": "2:22:30",
+   "to": "2:25:00"
+  },
+  {
+   "file": "minimap/sheet_009.jpg",
+   "from": "2:25:00",
+   "to": "2:27:30"
+  },
+  {
+   "file": "minimap/sheet_010.jpg",
+   "from": "2:27:30",
+   "to": "2:30:00"
+  },
+  {
+   "file": "minimap/sheet_011.jpg",
+   "from": "2:30:00",
+   "to": "2:32:15"
+  }
+ ],
+ "overview_sheets": [
+  {
+   "file": "overview/sheet_001.jpg",
+   "from": "2:05:00",
+   "to": "2:13:00"
+  },
+  {
+   "file": "overview/sheet_002.jpg",
+   "from": "2:13:00",
+   "to": "2:21:00"
+  },
+  {
+   "file": "overview/sheet_003.jpg",
+   "from": "2:21:00",
+   "to": "2:29:00"
+  },
+  {
+   "file": "overview/sheet_004.jpg",
+   "from": "2:29:00",
+   "to": "2:32:15"
+  }
+ ],
+ "reviews": [
+  {
+   "from": "2:32:15",
+   "to": "2:38:40",
+   "note": "경기 직후 리플레이를 처음부터 빠르게 훑어 봄",
+   "sheets": [
+    {
+     "file": "review/sheets/s1_001.jpg",
+     "from": "2:32:15",
+     "to": "2:36:15"
+    },
+    {
+     "file": "review/sheets/s1_002.jpg",
+     "from": "2:36:15",
+     "to": "2:38:40"
+    }
+   ]
+  },
+  {
+   "from": "7:17:30",
+   "to": "7:35:00",
+   "note": "인게임 19:40 근처(킬 17:13)에서 거의 멈춘 채 오래 이야기함",
+   "sheets": [
+    {
+     "file": "review/sheets/s2_001.jpg",
+     "from": "7:17:30",
+     "to": "7:21:30"
+    },
+    {
+     "file": "review/sheets/s2_002.jpg",
+     "from": "7:21:30",
+     "to": "7:25:30"
+    },
+    {
+     "file": "review/sheets/s2_003.jpg",
+     "from": "7:25:30",
+     "to": "7:29:30"
+    },
+    {
+     "file": "review/sheets/s2_004.jpg",
+     "from": "7:29:30",
+     "to": "7:33:30"
+    },
+    {
+     "file": "review/sheets/s2_005.jpg",
+     "from": "7:33:30",
+     "to": "7:35:00"
+    }
+   ]
+  },
+  {
+   "from": "7:59:30",
+   "to": "8:04:00",
+   "note": "같은 19:40 장면을 다시 틀어 봄",
+   "sheets": [
+    {
+     "file": "review/sheets/s3_001.jpg",
+     "from": "7:59:30",
+     "to": "8:03:30"
+    },
+    {
+     "file": "review/sheets/s3_002.jpg",
+     "from": "8:03:30",
+     "to": "8:04:00"
+    }
+   ]
+  },
+  {
+   "from": "8:05:00",
+   "to": "8:25:00",
+   "note": "19:40 이후 교전을 이어서 돌려 봄",
+   "sheets": [
+    {
+     "file": "review/sheets/s4_001.jpg",
+     "from": "8:05:00",
+     "to": "8:09:00"
+    },
+    {
+     "file": "review/sheets/s4_002.jpg",
+     "from": "8:09:00",
+     "to": "8:13:00"
+    },
+    {
+     "file": "review/sheets/s4_003.jpg",
+     "from": "8:13:00",
+     "to": "8:17:00"
+    },
+    {
+     "file": "review/sheets/s4_004.jpg",
+     "from": "8:17:00",
+     "to": "8:21:00"
+    },
+    {
+     "file": "review/sheets/s4_005.jpg",
+     "from": "8:21:00",
+     "to": "8:25:00"
+    }
+   ]
+  }
+ ],
+ "note": "구간 다운로드는 키프레임 기준이라 VOD 시각이 몇 초 어긋날 수 있다. 정확한 시각은 화면의 인게임 시계를 따른다."
+}

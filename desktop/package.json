@@ -59,6 +59,10 @@
         "to": "backend/kb"
       },
       {
+        "from": "../content",
+        "to": "backend/content"
+      },
+      {
         "from": "../web/dist",
         "to": "backend/web/dist"
       },

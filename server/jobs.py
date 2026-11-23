@@ -99,6 +99,7 @@ class JobQueue:
             "redetect": ["판 다시 찾기"],
             "analyze": ["고화질 자료 만들기", "Claude 분석", "지식 정리"],
             "mine": ["녹화 정리", "Claude 분석", "총평"],
+            "video": ["영상 받기"],
         }[kind]
         job = Job(id=uuid.uuid4().hex[:10], kind=kind, url=url, vod=vod, game=game,
                   steps=[Step(n) for n in names])
@@ -183,6 +184,8 @@ class JobQueue:
             await self._step(job, 1, self._analyze(job))
             if len(job.steps) > 2:  # 분석은 이미 보이고, 판을 넘는 지식(kb)만 뒤에서 정리
                 await self._step(job, 2, self._update_kb(job))
+        elif job.kind == "video":  # 공유받은 프로 판의 영상만
+            await self._step(job, 0, self._exec(job, [PY, "tools/fetch_video.py", job.vod, str(job.game)]))
         elif job.kind == "mine":
             await self._step(job, 0, self._extract(job))
             await self._step(job, 1, self._analyze_mine(job))

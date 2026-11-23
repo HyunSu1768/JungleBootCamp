@@ -1,0 +1,111 @@
+{
+ "url": "https://vod.sooplive.com/player/212755349",
+ "name": "game6",
+ "draft_start": "6:13:00",
+ "video_start": "6:13:00",
+ "start": "6:19:00",
+ "end": "6:47:50",
+ "part": 2,
+ "minimap_crop": "0.82,0.68,0.18,0.32",
+ "minimap_interval": 5,
+ "frame_interval": 5,
+ "minimap_sheets": [
+  {
+   "file": "minimap/sheet_001.jpg",
+   "from": "6:19:00",
+   "to": "6:21:30"
+  },
+  {
+   "file": "minimap/sheet_002.jpg",
+   "from": "6:21:30",
+   "to": "6:24:00"
+  },
+  {
+   "file": "minimap/sheet_003.jpg",
+   "from": "6:24:00",
+   "to": "6:26:30"
+  },
+  {
+   "file": "minimap/sheet_004.jpg",
+   "from": "6:26:30",
+   "to": "6:29:00"
+  },
+  {
+   "file": "minimap/sheet_005.jpg",
+   "from": "6:29:00",
+   "to": "6:31:30"
+  },
+  {
+   "file": "minimap/sheet_006.jpg",
+   "from": "6:31:30",
+   "to": "6:34:00"
+  },
+  {
+   "file": "minimap/sheet_007.jpg",
+   "from": "6:34:00",
+   "to": "6:36:30"
+  },
+  {
+   "file": "minimap/sheet_008.jpg",
+   "from": "6:36:30",
+   "to": "6:39:00"
+  },
+  {
+   "file": "minimap/sheet_009.jpg",
+   "from": "6:39:00",
+   "to": "6:41:30"
+  },
+  {
+   "file": "minimap/sheet_010.jpg",
+   "from": "6:41:30",
+   "to": "6:44:00"
+  },
+  {
+   "file": "minimap/sheet_011.jpg",
+   "from": "6:44:00",
+   "to": "6:46:30"
+  },
+  {
+   "file": "minimap/sheet_012.jpg",
+   "from": "6:46:30",
+   "to": "6:47:50"
+  }
+ ],
+ "overview_sheets": [
+  {
+   "file": "overview/sheet_001.jpg",
+   "from": "6:19:00",
+   "to": "6:27:00"
+  },
+  {
+   "file": "overview/sheet_002.jpg",
+   "from": "6:27:00",
+   "to": "6:35:00"
+  },
+  {
+   "file": "overview/sheet_003.jpg",
+   "from": "6:35:00",
+   "to": "6:43:00"
+  },
+  {
+   "file": "overview/sheet_004.jpg",
+   "from": "6:43:00",
+   "to": "6:47:50"
+  }
+ ],
+ "reviews": [
+  {
+   "from": "6:48:40",
+   "to": "6:49:40",
+   "note": "결과 화면 사이에 리플레이를 잠깐 봄",
+   "sheets": [
+    {
+     "file": "review/sheets/s1_001.jpg",
+     "from": "6:48:40",
+     "to": "6:49:40"
+    }
+   ]
+  }
+ ],
+ "note": "구간 다운로드는 키프레임 기준이라 VOD 시각이 몇 초 어긋날 수 있다. 정확한 시각은 화면의 인게임 시계를 따른다."
+}

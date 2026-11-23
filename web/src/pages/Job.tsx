@@ -3,8 +3,8 @@ import { Link, useParams } from "react-router-dom";
 import { api } from "../api";
 import { BottomCTA, ErrorView, JobSteps, Loading, PageHead, isActive, usePoll } from "../ui";
 
-const TITLES = { scan: "영상을 훑어보고 있어요", redetect: "판을 다시 찾고 있어요", analyze: "판을 분석하고 있어요" };
-const DONE = { scan: "판을 다 찾았어요", redetect: "판을 다시 찾았어요", analyze: "분석이 끝났어요" };
+const TITLES: Record<string, string> = { scan: "영상을 훑어보고 있어요", redetect: "판을 다시 찾고 있어요", analyze: "판을 분석하고 있어요", mine: "내 게임을 분석하고 있어요", video: "영상을 받고 있어요" };
+const DONE: Record<string, string> = { scan: "판을 다 찾았어요", redetect: "판을 다시 찾았어요", analyze: "분석이 끝났어요", mine: "분석이 끝났어요", video: "영상을 받았어요" };
 
 export default function JobPage() {
   const { id = "" } = useParams();

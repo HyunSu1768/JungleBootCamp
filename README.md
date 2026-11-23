@@ -29,3 +29,12 @@
 
 ## 릴리스
 `main`에 푸시하면 GitHub Actions(`.github/workflows/release.yml`)가 Windows에서 스모크 테스트 → 설치 파일 빌드 → 릴리스(`v0.1.<실행 번호>`)까지 해요. 앞 두 자리는 `desktop/package.json`의 version으로 정해요.
+
+### 분석 공유
+분석한 프로 판은 릴리스에 같이 들어가서 모든 사용자가 봐요. 분석이 끝나면 내보내고 커밋해요.
+```
+uv run tools/export_content.py            # vods/ → content/ (분석, 판 정보, 분석이 쓰는 이미지)
+uv run tools/export_content.py --vods "%LOCALAPPDATA%\JungleBootCamp\vods"   # Windows 앱에서 분석한 판
+```
+앱은 켤 때 `content/`와 `kb/`를 사용자 데이터에 합쳐요(`server/content.py`). 사용자가 직접 다시 분석한 판은 건드리지 않아요.
+영상은 판마다 수 GB라 넣지 않고, 판 화면의 '영상 받기'로 숲에서 그 판 구간만 받아요(`tools/fetch_video.py`). 내 게임(`vods/mine/`)은 내보내지 않아요.

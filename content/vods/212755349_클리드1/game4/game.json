@@ -1,0 +1,139 @@
+{
+ "url": "https://vod.sooplive.com/player/212755349",
+ "name": "game4",
+ "draft_start": "4:21:00",
+ "video_start": "4:21:00",
+ "start": "4:32:00",
+ "end": "5:10:01",
+ "part": [
+  1,
+  2
+ ],
+ "minimap_crop": "0.82,0.68,0.18,0.32",
+ "minimap_interval": 5,
+ "frame_interval": 5,
+ "minimap_sheets": [
+  {
+   "file": "minimap/sheet_001.jpg",
+   "from": "4:32:00",
+   "to": "4:34:30"
+  },
+  {
+   "file": "minimap/sheet_002.jpg",
+   "from": "4:34:30",
+   "to": "4:37:00"
+  },
+  {
+   "file": "minimap/sheet_003.jpg",
+   "from": "4:37:00",
+   "to": "4:39:30"
+  },
+  {
+   "file": "minimap/sheet_004.jpg",
+   "from": "4:39:30",
+   "to": "4:42:00"
+  },
+  {
+   "file": "minimap/sheet_005.jpg",
+   "from": "4:42:00",
+   "to": "4:44:30"
+  },
+  {
+   "file": "minimap/sheet_006.jpg",
+   "from": "4:44:30",
+   "to": "4:47:00"
+  },
+  {
+   "file": "minimap/sheet_007.jpg",
+   "from": "4:47:00",
+   "to": "4:49:30"
+  },
+  {
+   "file": "minimap/sheet_008.jpg",
+   "from": "4:49:30",
+   "to": "4:52:00"
+  },
+  {
+   "file": "minimap/sheet_009.jpg",
+   "from": "4:52:00",
+   "to": "4:54:30"
+  },
+  {
+   "file": "minimap/sheet_010.jpg",
+   "from": "4:54:30",
+   "to": "4:57:00"
+  },
+  {
+   "file": "minimap/sheet_011.jpg",
+   "from": "4:57:00",
+   "to": "4:59:30"
+  },
+  {
+   "file": "minimap/sheet_012.jpg",
+   "from": "4:59:30",
+   "to": "5:02:00"
+  },
+  {
+   "file": "minimap/sheet_013.jpg",
+   "from": "5:02:00",
+   "to": "5:04:30"
+  },
+  {
+   "file": "minimap/sheet_014.jpg",
+   "from": "5:04:30",
+   "to": "5:07:00"
+  },
+  {
+   "file": "minimap/sheet_015.jpg",
+   "from": "5:07:00",
+   "to": "5:09:30"
+  },
+  {
+   "file": "minimap/sheet_016.jpg",
+   "from": "5:09:30",
+   "to": "5:10:01"
+  }
+ ],
+ "overview_sheets": [
+  {
+   "file": "overview/sheet_001.jpg",
+   "from": "4:32:00",
+   "to": "4:40:00"
+  },
+  {
+   "file": "overview/sheet_002.jpg",
+   "from": "4:40:00",
+   "to": "4:48:00"
+  },
+  {
+   "file": "overview/sheet_003.jpg",
+   "from": "4:48:00",
+   "to": "4:56:00"
+  },
+  {
+   "file": "overview/sheet_004.jpg",
+   "from": "4:56:00",
+   "to": "5:04:00"
+  },
+  {
+   "file": "overview/sheet_005.jpg",
+   "from": "5:04:00",
+   "to": "5:10:01"
+  }
+ ],
+ "reviews": [
+  {
+   "from": "5:15:15",
+   "to": "5:17:20",
+   "note": "다음 판 대기 중 리플레이를 잠깐 봄. 4판 직후라 4판 리플레이로 봄(추정)",
+   "sheets": [
+    {
+     "file": "review/sheets/s1_001.jpg",
+     "from": "5:15:15",
+     "to": "5:17:20"
+    }
+   ]
+  }
+ ],
+ "note": "구간 다운로드는 키프레임 기준이라 VOD 시각이 몇 초 어긋날 수 있다. 정확한 시각은 화면의 인게임 시계를 따른다."
+}

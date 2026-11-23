@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { api, secs, type GameDetail, type Analysis, type Concept, type Decision, type Draft, type Lane, type Pick, type ReviewComment, type Source, type Turn } from "../api";
-import { ErrorView, FrameStrip, isActive, Loading, PageHead, ResultBadge, SourceBadge, usePoll } from "../ui";
+import { ErrorView, FrameStrip, isActive, JobSteps, Loading, PageHead, ResultBadge, SourceBadge, usePoll } from "../ui";
 import { GoalVerdict, MetricsCard, MinePending } from "./Mine";
 import { CoachView } from "./Debrief";
 import Timeline, { GROUP_LABEL, Legend, TurnBar, groupOf, timeShare } from "./game/Timeline";
@@ -31,7 +31,8 @@ export default function GamePage() {
   // 내 게임(/mine/:id)도 같은 화면으로 본다. 분석 전이면 진행 상황과 지표를 보여준다
   const { data: mine, reload: reloadMine } = usePoll(() => (mineId ? api.myGame(mineId) : Promise.resolve(null)), [mineId],
     (d) => !!d && isActive(d.job), 4000);
-  const { data: vodData, error } = usePoll(() => (mineId ? Promise.resolve(null) : api.game(vodDir, Number(n))), [vodDir, n, mineId], () => false);
+  const { data: vodData, error, reload: reloadVod } = usePoll(() => (mineId ? Promise.resolve(null) : api.game(vodDir, Number(n))), [vodDir, n, mineId],
+    (d) => !!d && isActive(d.video_job), 4000);
   const data = (mineId ? (mine?.analysis ? mine : null) : vodData) as GameDetail | null | undefined;
   const dir = data?.vod.dir ?? vodDir;
   const { data: kb } = usePoll(api.kb, [], () => false);
@@ -86,6 +87,7 @@ export default function GamePage() {
         </div>
       )}
 
+      {!mine && data.has_video === false && <VideoFetch d={data} onChange={reloadVod} />}
       <div className="layout">
         <div>
           <div className="tabs" role="tablist">
@@ -693,6 +695,33 @@ function DecisionCard({ d, turnId }: { d: Decision; turnId: string }) {
       </dl>
       <Background items={d.background} />
       {d.frames && d.frames.length > 0 && <FrameStrip frames={d.frames} />}
+    </div>
+  );
+}
+
+/** 공유받은 판: 분석과 이미지는 앱에 들어 있고, 장면 영상은 원할 때 숲에서 이 판 구간만 받는다 */
+function VideoFetch({ d, onChange }: { d: GameDetail; onChange: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const job = d.video_job;
+  const m = d.meta as { start?: string; end?: string; video_start?: string };
+  const minutes = m.end && (m.video_start || m.start) ? Math.round((secs(m.end) - secs((m.video_start || m.start)!)) / 60) : null;
+  if (job && isActive(job)) {
+    return <div className="card card-tight" style={{ marginBottom: 24 }}><JobSteps job={job} /></div>;
+  }
+  return (
+    <div className="card card-tight video-fetch" style={{ marginBottom: 24 }}>
+      <div>
+        <b>장면 영상은 아직 없어요</b>
+        <div className="small">
+          분석과 이미지는 다 볼 수 있어요. 장면을 영상으로 보고 예측 훈련에 영상까지 쓰려면 숲에서 이 판 구간만 받아요
+          {minutes ? ` (${minutes}분, 720p, 1GB 안팎)` : ""}.
+          {job?.status === "error" && " 지난번엔 받다가 멈췄어요."}
+        </div>
+      </div>
+      <button className="btn btn-primary btn-sm" disabled={busy}
+        onClick={async () => { setBusy(true); try { await api.fetchVideo(d.vod.dir, d.game.n); onChange(); } finally { setBusy(false); } }}>
+        영상 받기
+      </button>
     </div>
   );
 }

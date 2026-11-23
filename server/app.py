@@ -23,7 +23,7 @@ from . import platform_util
 from .jobs import ROOT, VODS, JobQueue, find_claude
 
 platform_util.hide_console_windows()
-from . import debrief, mine, system
+from . import content, debrief, mine, system
 from .training import router as training_router
 
 KB = Path(os.environ.get("JUNGLE_KB", ROOT / "kb")).resolve()
@@ -36,6 +36,13 @@ async def lifespan(_: FastAPI):
     global queue
     VODS.mkdir(exist_ok=True)
     KB.mkdir(exist_ok=True)
+    # 릴리스에 같이 들어온 공유 분석(프로 판)과 kb를 사용자 데이터에 합친다
+    try:
+        got = content.seed()
+        if got["files"] or got["kb"]:
+            print(f"공유 콘텐츠를 합쳤어요: 파일 {got['files']}개, kb {got['kb']}개", flush=True)
+    except OSError as e:
+        print(f"공유 콘텐츠를 합치지 못했어요: {e}", flush=True)
     queue = JobQueue()
     mine.QUEUE = queue
     task = asyncio.create_task(queue.worker())
@@ -196,7 +203,20 @@ def get_game(name: str, n: int):
         "game": next((g for g in games if g["n"] == n), {"n": n}),
         "meta": read_json(gdir / "game.json", {}),
         "analysis": analysis,
+        # 공유받은 판은 영상이 없다. 사용자가 원하면 그 구간만 받는다
+        "has_video": (gdir / "video.mp4").exists(),
+        "video_job": job_view(queue.active_for(name, n) or queue.latest_for(name, n, "video")),
     }
+
+
+@app.post("/api/vods/{name}/games/{n}/video")
+def fetch_video(name: str, n: int):
+    d = vod_dir(name)
+    if not (d / f"game{n}" / "game.json").exists():
+        raise HTTPException(404, "판 정보가 없어요")
+    if queue.active_for(name, n):
+        raise HTTPException(409, "이 판은 이미 작업 중이에요")
+    return job_view(queue.submit("video", read_json(d / f"game{n}" / "game.json", {}).get("url") or "", vod=name, game=n))
 
 
 @app.get("/api/vods/{name}/games/{n}/thumb")
