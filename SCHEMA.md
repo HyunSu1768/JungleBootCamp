@@ -54,7 +54,8 @@ JSON은 반드시 유효해야 한다(쓰고 나서 `uv run python -m json.tool 
   "length": "28:10",
   "context": "솔로랭크",           // 솔로랭크 | 자유랭크 | 내전 | 대회. 내전, 대회는 소통하는 팀 게임이라 솔로랭크와 다를 수 있다
   "own": false,                   // 내 게임 분석(스킬 C)이면 true. streamer는 null
-  // 내 게임만: "goal_check": {...}, "next_goal": {...} (스킬 C 참고)
+  // 내 게임만: "goal_check": {...}, "next_goal": {...} (스킬 C 참고),
+  //   "coach": {headline, fixes[], keeps[], self_check, lessons[]} (판 전체 총평, 스킬 D '총평 담당'. lessons는 앱이 복기 노트(DB)에 쌓는다)
   "summary": ["이 판의 흐름 3~5줄. 플랜 → 턴 → 운영이 어떻게 이어졌는지"],
   "takeaways": ["플래티넘 이상이 가져갈 배움 3개. 일반론이 아니라 이 판의 조건이 붙은 판단"],
 

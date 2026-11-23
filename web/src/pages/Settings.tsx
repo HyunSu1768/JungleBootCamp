@@ -28,9 +28,25 @@ export default function Settings() {
         </div>
         <label className="setting" style={{ marginTop: 16 }}>
           <div><b>내 정글 판 자동 분석</b><div className="small">판이 끝나면 바로 분석해요. 판마다 Claude 사용량이 들어요.</div></div>
-          <input type="checkbox" className="switch" checked={(p as { auto_analyze?: number }).auto_analyze !== 0}
-            onChange={async (e) => { await api.saveMe({ auto_analyze: e.target.checked ? 1 : 0 } as never); me.reload(); }} />
+          <input type="checkbox" className="switch" checked={p.auto_analyze !== 0}
+            onChange={async (e) => { await api.saveMe({ auto_analyze: e.target.checked ? 1 : 0 }); me.reload(); }} />
         </label>
+      </section>
+      <section className="section">
+        <h2 className="section-title">판이 끝나면 복기</h2>
+        <label className="setting">
+          <div><b>복기 시간 동안 큐 막기</b><div className="small">판이 끝나면 복기 화면을 띄우고, 정한 시간 동안 롤 클라이언트에서 큐를 돌리면 취소해요. 바꾸면 다음 판부터 적용돼요.</div></div>
+          <input type="checkbox" className="switch" checked={p.review_lock !== 0}
+            onChange={async (e) => { await api.saveMe({ review_lock: e.target.checked ? 1 : 0 }); me.reload(); }} />
+        </label>
+        {p.review_lock !== 0 && (
+          <div className="row" style={{ marginTop: 12 }}>
+            {[5, 10, 15, 20].map((n) => (
+              <button key={n} className={`chip ${(p.review_minutes ?? 10) === n ? "on" : ""}`}
+                onClick={async () => { await api.saveMe({ review_minutes: n }); me.reload(); }}>{n}분</button>
+            ))}
+          </div>
+        )}
       </section>
       <section className="section">
         <h2 className="section-title">분석 방식</h2>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { Link, Navigate, NavLink, Route, Routes, useLocation } from "react-router-dom";
-import { api, type AppInfo } from "./api";
+import { Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate } from "react-router-dom";
+import { api, type AppInfo, type DebriefState } from "./api";
 import { LightboxProvider } from "./ui";
 import Home from "./pages/Home";
 import AddVod from "./pages/AddVod";
@@ -15,6 +15,7 @@ import Train from "./pages/Train";
 import Mine from "./pages/Mine";
 import Welcome from "./pages/Welcome";
 import SettingsPage from "./pages/Settings";
+import Debrief, { clock, useRemaining } from "./pages/Debrief";
 
 const TABS = [
   { to: "/", label: "훈련", end: true },
@@ -29,6 +30,41 @@ const KNOWLEDGE = [
   { to: "/rules", label: "상황별 원칙" },
   { to: "/review", label: "서술형 복습" },
 ];
+
+/** 판이 끝나면 복기 화면으로 데려가고, 잠금 동안 모든 화면 위에 남은 시간을 띄운다 */
+function DebriefWatch() {
+  const { pathname } = useLocation();
+  const nav = useNavigate();
+  const [st, setSt] = useState<DebriefState | null>(null);
+  useEffect(() => {
+    let alive = true;
+    const tick = async () => {
+      try {
+        const { active } = await api.debriefActive();
+        if (!alive) return;
+        setSt(active);
+        // 새로 끝난 판이면 한 번 복기 화면으로 (이미 데려간 판은 다시 끌고 가지 않는다)
+        let seen: string | null = null;
+        try { seen = localStorage.getItem("debrief-opened"); } catch { /* 저장소가 막혀 있어도 동작 */ }
+        if (active && !active.done && active.locked && seen !== active.game_id) {
+          try { localStorage.setItem("debrief-opened", active.game_id); } catch { /* */ }
+          if (!window.location.pathname.startsWith("/debrief/")) nav(`/debrief/${active.game_id}`);
+        }
+      } catch { /* 서버가 잠깐 없을 때 */ }
+    };
+    void tick();
+    const t = window.setInterval(tick, 5000);
+    return () => { alive = false; window.clearInterval(t); };
+  }, [nav]);
+  const left = useRemaining(st?.lock_until);
+  if (!st || left <= 0 || pathname.startsWith("/debrief/") || pathname === "/welcome") return null;
+  return (
+    <Link to={`/debrief/${st.game_id}`} className="lock-bar">
+      <span>복기 시간 · 큐는 <b>{clock(left)}</b> 뒤에 풀려요</span>
+      <span>복기하기 ›</span>
+    </Link>
+  );
+}
 
 function ScrollTop() {
   const { pathname, hash } = useLocation();
@@ -47,12 +83,14 @@ export default function App() {
   const section = (to: string) =>
     to === "/" ? pathname === "/"
     : to === "/vods" ? /^\/(vods|add|jobs)/.test(pathname)
+    : to === "/mine" ? /^\/(mine|debrief)/.test(pathname)
     : to === "/concepts" ? /^\/(concepts|rules|review)/.test(pathname)
     : pathname.startsWith(to);
   const inKnowledge = section("/concepts");
   return (
     <LightboxProvider>
       <ScrollTop />
+      <DebriefWatch />
       <nav className="nav">
         <div className="nav-inner">
           <Link to="/" className="brand">
@@ -89,6 +127,7 @@ export default function App() {
           <Route path="/welcome" element={<Welcome />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/mine/:id" element={<GamePage />} />
+          <Route path="/debrief/:id" element={<Debrief />} />
           <Route path="/add" element={<AddVod />} />
           <Route path="/vods/:dir" element={<VodPage />} />
           <Route path="/vods/:dir/:n" element={<GamePage />} />

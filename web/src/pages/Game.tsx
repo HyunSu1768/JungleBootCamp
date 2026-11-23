@@ -3,6 +3,7 @@ import { Link, useLocation, useParams } from "react-router-dom";
 import { api, secs, type GameDetail, type Analysis, type Concept, type Decision, type Draft, type Lane, type Pick, type ReviewComment, type Source, type Turn } from "../api";
 import { ErrorView, FrameStrip, isActive, Loading, PageHead, ResultBadge, SourceBadge, usePoll } from "../ui";
 import { GoalVerdict, MetricsCard, MinePending } from "./Mine";
+import { CoachView } from "./Debrief";
 import Timeline, { GROUP_LABEL, Legend, TurnBar, groupOf, timeShare } from "./game/Timeline";
 import { PlayerProvider } from "./game/Player";
 import { ClipsProvider, PlayButton, buildClips, useClips } from "./game/clips";
@@ -72,6 +73,7 @@ export default function GamePage() {
       {mine && (
         <div className="own-head">
           <MetricsCard m={mine.metrics} />
+          {a.coach && <CoachView coach={a.coach} gameId={mine.id} />}
           <GoalVerdict goal={mine.goal} check={a.goal_check} onChange={reloadMine} />
           {a.next_goal && (
             <div className="card card-blue">

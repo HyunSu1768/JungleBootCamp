@@ -181,6 +181,19 @@ async function stopServer() {
 }
 
 // ---------- 창, 트레이 ----------
+function getJson(url, timeout = 2000) {
+  return new Promise((resolve) => {
+    const req = http.get(url, { timeout }, (res) => {
+      let body = "";
+      res.setEncoding("utf8");
+      res.on("data", (c) => (body += c));
+      res.on("end", () => { try { resolve(JSON.parse(body)); } catch { resolve(null); } });
+    });
+    req.on("error", () => resolve(null));
+    req.on("timeout", () => { req.destroy(); resolve(null); });
+  });
+}
+
 function createWindow() {
   win = new BrowserWindow({
     width: 1360, height: 900, minWidth: 420, minHeight: 600,
@@ -216,6 +229,49 @@ function showWindow() {
   if (win.isMinimized()) win.restore();
   win.show();
   win.focus();
+}
+
+/** 롤 클라이언트 위로 확실히 올린다 (Windows는 포커스를 뺏지 못하게 막아서, 잠깐 맨 위로 고정했다 푼다) */
+function bringToFront() {
+  if (!win) return;
+  showWindow();
+  win.setAlwaysOnTop(true);
+  win.focus();
+  setTimeout(() => win && win.setAlwaysOnTop(false), 1500);
+}
+
+function notify(title, body) {
+  if (!Notification.isSupported()) return;
+  const n = new Notification({ title, body });
+  n.on("click", () => showWindow());
+  n.show();
+}
+
+// ---------- 판 끝난 뒤 복기 ----------
+// 녹화가 끝나면 서버가 복기 시간을 정한다. 앱을 앞으로 띄워 복기 화면을 열고, 에이전트가 큐를 막으면 다시 띄운다
+let debrief = { id: null, blocked: 0 };
+function watchDebrief() {
+  setInterval(async () => {
+    if (!port || !win) return;
+    const r = await getJson(`${appUrl()}api/debrief/active`);
+    const a = r && r.active;
+    if (!a || !a.locked) return;
+    const left = `${Math.floor(a.remaining / 60)}분 ${a.remaining % 60}초`;
+    const open = () => {
+      if (!win.webContents.getURL().includes(`/debrief/${a.game_id}`)) win.loadURL(`${appUrl()}debrief/${a.game_id}`);
+      bringToFront();
+    };
+    if (a.game_id !== debrief.id) {
+      debrief = { id: a.game_id, blocked: a.blocked };
+      if (a.done) return;
+      open();
+      notify("수고했어요. 복기 시간이에요", `${left} 동안 큐를 막아 둘게요. 그동안 이 판을 같이 돌아봐요.`);
+    } else if (a.blocked > debrief.blocked) {
+      debrief.blocked = a.blocked;
+      open();
+      notify("복기 시간이라 큐를 취소했어요", `${left} 뒤에 큐를 돌릴 수 있어요.`);
+    }
+  }, 3000);
 }
 
 function createTray() {
@@ -327,6 +383,7 @@ async function boot() {
     await startServer(py);
     await win.loadURL(appUrl());
     setupUpdater();
+    watchDebrief();
     if (process.env.JUNGLE_DEV_SNAPSHOT) {
       // 개발 확인용: 화면을 파일로 저장하고 끝낸다
       setTimeout(async () => {

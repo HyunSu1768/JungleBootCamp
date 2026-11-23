@@ -23,7 +23,7 @@ from . import platform_util
 from .jobs import ROOT, VODS, JobQueue, find_claude
 
 platform_util.hide_console_windows()
-from . import mine, system
+from . import debrief, mine, system
 from .training import router as training_router
 
 KB = Path(os.environ.get("JUNGLE_KB", ROOT / "kb")).resolve()
@@ -48,6 +48,7 @@ async def lifespan(_: FastAPI):
 app = FastAPI(lifespan=lifespan)
 app.include_router(training_router)
 app.include_router(mine.router)
+app.include_router(debrief.router)
 app.include_router(system.router)
 
 

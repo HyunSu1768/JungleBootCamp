@@ -21,7 +21,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
-from . import db, training
+from . import db, debrief, training
 from .jobs import KB, ROOT, VODS
 
 router = APIRouter()
@@ -97,9 +97,9 @@ def agent_script():
 @router.post("/api/agent/status")
 def agent_status(body: dict, authorization: str | None = Header(default=None)):
     uid = agent_user(authorization)
-    STATUS[uid] = {**{k: body.get(k) for k in ("state", "version", "platform", "game_time", "champion", "elapsed", "pending")}, "at": time.time()}
+    STATUS[uid] = {**{k: body.get(k) for k in ("state", "version", "platform", "game_time", "champion", "elapsed", "pending", "lock")}, "at": time.time()}
     db.x("UPDATE agent_tokens SET last_seen = ? WHERE hash = ?", (db.now(), _hash(authorization[7:].strip())))
-    return {"ok": True}
+    return {"ok": True, "lock_until": debrief.lock_until(uid) or None}  # 복기 시간이면 에이전트가 큐를 막는다
 
 
 def _part(uid: str, rec: str) -> Path:
@@ -145,7 +145,7 @@ def receive(body: Delivery, uid: str = Depends(agent_user)):
     gid = _safe_id(str(meta.get("id") or ""))
     root = MINE / uid / gid
     if db.q("SELECT 1 FROM my_games WHERE id = ? AND user_id = ?", (gid, uid)):
-        return {"id": gid, "duplicate": True}
+        return {"id": gid, "duplicate": True, "lock_until": debrief.lock_until(uid) or None}
     root.mkdir(parents=True, exist_ok=True)
     src = root / "recording.mkv"
     if body.upload:
@@ -256,12 +256,14 @@ def register(uid: str, gid: str, root: Path, meta: dict) -> dict:
           goal["id"] if goal else None, db.dumps(m), m["role"]))
     if goal:
         db.x("UPDATE goals SET game_id = ? WHERE id = ?", (gid, goal["id"]))
+    # 판이 끝나면 복기 시간: 잠그고(에이전트가 큐를 막는다) 복기 화면을 띄운다
+    debrief.start(uid, gid, meta)
     job = None
     prof = db.get_profile(uid)
     # 정글 판만 자동 분석 (분석 1회에 비용이 드니 정글이 아닌 판은 사용자가 원할 때만)
     if prof.get("auto_analyze", 1) and m["role"] in ("정글", None) and duration > 300:
         job = QUEUE.submit("mine", str(root / "recording.mkv"), vod=str(root.relative_to(VODS)), game=1).to_dict()
-    return {"id": gid, "metrics": m, "job": job}
+    return {"id": gid, "metrics": m, "job": job, "lock_until": debrief.lock_until(uid) or None}
 
 
 # ================= 웹: 내 게임 =================
@@ -376,6 +378,11 @@ def goals(uid: str = Depends(db.current_user)):
                     "why": ("내 게임에서 자주 아쉬웠던 유형" if mistakes.get(r.get("category")) else
                             "훈련에서 약한 유형" if r.get("category") in weak and weak[r["category"]] < 0.6 else None)}
                    for r in rules[:6]]
+    # 내 복기 노트에서 두 판 넘게 반복한 실수가 가장 먼저 (판마다 총평이 쌓인 결과)
+    mine = [{"rule_id": le.get("rule_id"), "category": le.get("category"), "when": le["when_text"], "then": le["then_text"],
+             "why": f"내 복기 노트에서 {le['again']}번 나온 실수"}
+            for le in debrief.lessons(uid) if le["kind"] == "mistake" and le["again"] >= 2 and le.get("when_text") and le.get("then_text")]
+    suggestions = (mine[:3] + [s for s in suggestions if s["rule_id"] not in {m["rule_id"] for m in mine if m["rule_id"]}])[:6]
     return {"active": active_goal(uid), "history": history, "suggestions": suggestions}
 
 

@@ -26,7 +26,8 @@ from fastapi.testclient import TestClient  # noqa: E402
 import server.app  # noqa: E402
 
 with TestClient(server.app.app) as c:
-    for path in ("/api/app", "/api/me", "/api/train/overview", "/api/mine", "/api/goals", "/api/agent", "/api/kb", "/api/vods"):
+    for path in ("/api/app", "/api/me", "/api/train/overview", "/api/mine", "/api/goals", "/api/agent", "/api/kb", "/api/vods",
+                 "/api/debrief/active", "/api/lessons"):
         r = c.get(path)
         check(f"GET {path}", r.status_code == 200, str(r.status_code))
     r = c.get("/api/claude", params={"fresh": True})
@@ -76,7 +77,46 @@ cv2.circle(img, (120, 140), 12, (0, 0, 255), 2)  # 빨간 테두리 아이콘 �
 found = sightings.enemies(img)
 check("미니맵 상대 아이콘 찾기", len(found) == 1, str(found))
 
-# 6. 받아쓰기 라이브러리
+# 6. 복기 시간: 가짜 롤 클라이언트(LCU)에서 큐를 돌리면 에이전트가 취소한다
+import json as _json  # noqa: E402
+import threading  # noqa: E402
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer  # noqa: E402
+
+calls: list[str] = []
+phase = {"v": "Matchmaking"}
+
+
+class FakeLCU(BaseHTTPRequestHandler):
+    def log_message(self, *a):
+        pass
+
+    def _send(self, body: bytes = b"") -> None:
+        self.send_response(200 if body else 204)
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_GET(self):
+        self._send(_json.dumps(phase["v"]).encode())
+
+    def do_DELETE(self):
+        calls.append(self.path)
+        phase["v"] = "Lobby"
+        self._send()
+
+    do_POST = do_DELETE
+
+
+lcu_srv = ThreadingHTTPServer(("127.0.0.1", 0), FakeLCU)
+threading.Thread(target=lcu_srv.serve_forever, daemon=True).start()
+lock = Path(tempfile.mkdtemp()) / "lockfile"
+lock.write_text(f"LeagueClient:1:{lcu_srv.server_port}:pw:http")
+lc = recorder.LeagueClient(str(lock))
+check("복기 시간 큐 취소", lc.stop_queue() == "Matchmaking" and calls == ["/lol-lobby/v2/lobby/matchmaking/search"], str(calls))
+phase["v"] = "ChampSelect"
+check("챔피언 선택은 건드리지 않음", lc.stop_queue() is None and len(calls) == 1, str(calls))
+lcu_srv.shutdown()
+
+# 7. 받아쓰기 라이브러리
 import importlib.util  # noqa: E402
 
 check("faster-whisper", bool(importlib.util.find_spec("faster_whisper")) or not platform_util.WINDOWS)

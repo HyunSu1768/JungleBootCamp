@@ -93,6 +93,45 @@ SCHEMA = [
     ALTER TABLE my_games ADD COLUMN metrics TEXT;   -- JSON: 게임 기록으로 계산한 지표
     ALTER TABLE my_games ADD COLUMN role TEXT;
     """,
+    # v3: 판 끝난 뒤 복기(큐 잠금), 내 게임에서 쌓이는 복기 노트
+    """
+    ALTER TABLE users ADD COLUMN review_lock INTEGER NOT NULL DEFAULT 1;   -- 판이 끝나면 큐를 잠그고 복기
+    ALTER TABLE users ADD COLUMN review_minutes INTEGER NOT NULL DEFAULT 10;
+    CREATE TABLE debriefs (
+      game_id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      started TEXT NOT NULL,
+      lock_until REAL,         -- 이 시각(epoch 초)까지 큐를 막는다. NULL이면 잠금 없음
+      blocked INTEGER NOT NULL DEFAULT 0,  -- 잠금 중에 큐를 막은 횟수
+      self TEXT,               -- JSON: 내가 먼저 한 복기 (데스 이유, 가장 아쉬운 순간, 목표)
+      done TEXT                -- 복기를 끝낸 시각
+    );
+    CREATE INDEX debriefs_user ON debriefs(user_id, started);
+    CREATE TABLE lessons (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT NOT NULL,
+      kind TEXT NOT NULL,      -- mistake(고칠 것) | strength(지킬 것)
+      category TEXT,
+      title TEXT NOT NULL,     -- 짧은 이름
+      when_text TEXT,          -- 이러면
+      then_text TEXT,          -- 이렇게
+      rule_id TEXT,            -- 프로 영상 원칙(kb/rules.json)과 이어지면
+      created TEXT NOT NULL,
+      updated TEXT NOT NULL
+    );
+    CREATE INDEX lessons_user ON lessons(user_id, updated);
+    CREATE TABLE lesson_hits (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      lesson_id INTEGER NOT NULL,
+      game_id TEXT NOT NULL,
+      outcome TEXT NOT NULL,   -- again(또 나옴) | better(나아짐) | first(처음) | kept(잘 지킴)
+      t TEXT,                  -- 인게임 시각
+      ref TEXT,                -- 분석 안의 턴, 판단 id
+      note TEXT,
+      created TEXT NOT NULL
+    );
+    CREATE INDEX lesson_hits_lesson ON lesson_hits(lesson_id);
+    """,
 ]
 
 _lock = threading.Lock()
@@ -150,7 +189,7 @@ def get_profile(uid: str) -> dict:
     return rows[0] if rows else {"id": uid}
 
 
-PROFILE_FIELDS = ("name", "tier", "division", "role", "weekly_games", "goal_tier", "auto_analyze")
+PROFILE_FIELDS = ("name", "tier", "division", "role", "weekly_games", "goal_tier", "auto_analyze", "review_lock", "review_minutes")
 
 
 def set_profile(uid: str, data: dict) -> dict:

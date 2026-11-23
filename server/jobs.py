@@ -98,7 +98,7 @@ class JobQueue:
             "scan": ["영상 훑어보기", "판 찾기"],
             "redetect": ["판 다시 찾기"],
             "analyze": ["고화질 자료 만들기", "Claude 분석", "지식 정리"],
-            "mine": ["녹화 정리", "Claude 분석"],
+            "mine": ["녹화 정리", "Claude 분석", "총평"],
         }[kind]
         job = Job(id=uuid.uuid4().hex[:10], kind=kind, url=url, vod=vod, game=game,
                   steps=[Step(n) for n in names])
@@ -186,6 +186,8 @@ class JobQueue:
         elif job.kind == "mine":
             await self._step(job, 0, self._extract(job))
             await self._step(job, 1, self._analyze_mine(job))
+            if len(job.steps) > 2:  # 분석이 나온 뒤 판 전체 총평과 복기 노트
+                await self._step(job, 2, self._coach(job))
 
     async def _exec(self, job: Job, cmd: list[str], on_line=None, stdin_text: str | None = None) -> None:
         self.log(job, "$ " + " ".join(c if len(c) < 80 else c[:77] + "..." for c in cmd))
@@ -384,6 +386,59 @@ class JobQueue:
         gc = a.get("goal_check") or {}
         if goal and gc.get("followed") in ("yes", "partial", "no", "na") and not goal[0].get("followed"):
             db.x("UPDATE goals SET followed = ?, note = ? WHERE id = ?", (gc["followed"], gc.get("evidence"), goal[0]["id"]))
+
+    async def _coach(self, job: Job) -> None:
+        """판 전체 총평: 분석, 내가 먼저 한 복기, 가까운 프로 판, 지난 복기 노트를 보고 쓴다. 결과의 lessons는 복기 노트에 쌓인다"""
+        from . import db, debrief
+        root = VODS / job.vod
+        gdir = root / "game1"
+        gid = root.name
+        rows = db.q("SELECT user_id FROM my_games WHERE id = ?", (gid,))
+        uid = rows[0]["user_id"] if rows else "local"
+        # 본인 복기와 비교하려고, 아직 복기 시간인데 안 했으면 조금(최대 2분) 기다린다
+        for i in range(24):
+            d = debrief.get_row(uid, gid)
+            if not d or d.get("self") or (d.get("lock_until") or 0) < time.time():
+                break
+            if i == 0:
+                self.log(job, "내 복기를 기다려요 (최대 2분)")
+            if job.id in self.cancelled:
+                raise RuntimeError("취소됨")
+            await asyncio.sleep(5)
+        ctx = debrief.coach_context(uid, gid, gdir)
+        part = gdir / "parts" / "coach.json"
+        prompt = (
+            f"`.claude/skills/jungle-vod/SKILL.md`와 `SCHEMA.md`를 읽고, 'D. 나눠서 분석하기'의 '총평 담당'을 `{gdir}`에 대해 수행해. "
+            f"분석은 `{gdir}/analysis.json`, 총평 재료(내 복기, 지난 복기 노트, 가까운 프로 판, 원칙)는 `{ctx}`. "
+            f"결과는 `{part}`에 coach, next_goal 키만 담은 JSON 객체로 써. analysis.json과 kb/는 쓰지 마. "
+            "사용자에게 질문하지 말고 끝까지 진행해. 마지막 답변은 한국어 한 줄로."
+        )
+        for attempt in (1, 2):
+            part.unlink(missing_ok=True)
+            try:
+                await self._claude(job, prompt, tag="총평", effort=analysis_effort())
+                data = json.loads(part.read_text())
+                if not isinstance(data.get("coach"), dict):
+                    raise ValueError("coach.json에 coach가 없어요")
+                break
+            except Exception as e:  # noqa: BLE001
+                if job.id in self.cancelled or attempt == 2:
+                    raise
+                self.log(job, f"[총평] 다시 시도해요: {e}")
+        out = gdir / "analysis.json"
+        a = json.loads(out.read_text())
+        a["coach"] = data["coach"]
+        if isinstance(data.get("next_goal"), dict) and data["next_goal"].get("when"):
+            a["next_goal"] = data["next_goal"]
+        out.write_text(json.dumps(a, ensure_ascii=False, indent=1))
+        n = debrief.ingest(uid, gid, data["coach"])
+        self.log(job, f"복기 노트에 {n}개를 쌓았어요")
+        ng = a.get("next_goal") or {}
+        job.summary = (data["coach"].get("headline") or "") + (f"\n다음 목표: {ng.get('when')} → {ng.get('then')}" if ng else "")
+        try:
+            await self._exec(job, [PY, "tools/terms.py", str(gdir), "--fix"])
+        except RuntimeError:
+            self.log(job, "용어 검사에서 직접 고쳐야 할 표현이 남았어요 (위 목록)")
 
     async def _claude(self, job: Job, prompt: str, tag: str = "", effort: str | None = None) -> dict:
         cmd = [*find_claude(), "-p", "--output-format", "stream-json", "--verbose",

@@ -4,6 +4,9 @@
 게임 감지는 롤 클라이언트가 게임 중에만 여는 공식 로컬 API(Live Client Data, https://127.0.0.1:2999)로 한다.
 게임 메모리를 읽지 않는다. 같은 API로 인게임 시계, 이벤트(킬, 오브젝트), 10초마다 점수(CS, KDA, 레벨, 아이템)를 같이 남긴다.
 
+판이 끝나면 서버가 복기 시간(기본 10분)을 정해 준다. 그동안 롤 클라이언트의 로컬 API(LCU, lockfile의 포트와 비밀번호)로
+큐 상태만 보고, 큐를 돌리면 취소한다(수락 창이 떴으면 거절). 챔피언 선택 중에는 건드리지 않는다(닷지 불이익).
+
     python agent/recorder.py --server http://<서버 주소>:8790 --token <웹에서 받은 연결 토큰>
     python agent/recorder.py --list-screens        # 녹화할 화면 번호 확인
 
@@ -16,9 +19,11 @@ Windows: ffmpeg 6 이상 필요 (winget install Gyan.FFmpeg). 롤은 '테두리 
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import os
 import platform
+import re
 import shutil
 import signal
 import ssl
@@ -55,7 +60,7 @@ hide_console_windows()
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # Windows 콘솔에서 한글 로그
 
-VERSION = "0.1.0"
+VERSION = "0.2.0"
 CHUNK = 16 << 20    # 업로드 조각 16MB
 SSL = ssl.create_default_context()
 SSL.check_hostname = False
@@ -96,6 +101,84 @@ def trim_players(players: list[dict]) -> list[dict]:
             "spells": [(p.get("summonerSpells") or {}).get(k, {}).get("displayName") for k in ("summonerSpellOne", "summonerSpellTwo")],
         })
     return out
+
+
+# ---------------- 롤 클라이언트 (LCU): 복기 시간 동안 큐 막기 ----------------
+def _lockfile_candidates(explicit: str | None) -> list[Path]:
+    if explicit:
+        return [Path(explicit)]
+    if platform.system() == "Windows":
+        return [Path(f"{d}:/Riot Games/League of Legends/lockfile") for d in "CDEFG"]
+    if platform.system() == "Darwin":
+        return [Path("/Applications/League of Legends.app/Contents/LoL/lockfile")]
+    return []
+
+
+class LeagueClient:
+    """롤 클라이언트가 켜질 때 만드는 lockfile(이름:pid:포트:비밀번호:프로토콜)로 로컬 API에 붙는다.
+    설치 폴더가 기본 위치가 아니면 실행 중인 LeagueClientUx.exe의 명령줄에서 포트와 비밀번호를 읽는다."""
+
+    def __init__(self, lockfile: str | None = None) -> None:
+        self.lockfile = lockfile
+        self.base: str | None = None
+        self.auth = ""
+        self._ps_at = 0.0
+
+    def _connect(self) -> bool:
+        for f in _lockfile_candidates(self.lockfile):
+            try:
+                _, _, port, pw, proto = f.read_text().strip().split(":")[:5]
+            except (OSError, ValueError):
+                continue
+            self.base, self.auth = f"{proto}://127.0.0.1:{port}", pw
+            return True
+        if platform.system() == "Windows" and not self.lockfile and time.monotonic() - self._ps_at > 15:
+            self._ps_at = time.monotonic()
+            try:
+                out = subprocess.run(
+                    ["powershell", "-NoProfile", "-Command",
+                     "(Get-CimInstance Win32_Process -Filter \"Name='LeagueClientUx.exe'\").CommandLine"],
+                    capture_output=True, text=True, timeout=10).stdout
+            except (OSError, subprocess.TimeoutExpired):
+                out = ""
+            port, pw = re.search(r"--app-port=(\d+)", out), re.search(r"--remoting-auth-token=([\w-]+)", out)
+            if port and pw:
+                self.base, self.auth = f"https://127.0.0.1:{port.group(1)}", pw.group(1)
+                return True
+        return False
+
+    def _req(self, method: str, path: str):
+        if not self.base and not self._connect():
+            return None
+        req = urllib.request.Request(self.base + path, method=method, data=b"" if method in ("POST", "DELETE") else None)
+        req.add_header("Authorization", "Basic " + base64.b64encode(f"riot:{self.auth}".encode()).decode())
+        req.add_header("Accept", "application/json")
+        try:
+            with urllib.request.urlopen(req, timeout=2, context=SSL if self.base.startswith("https") else None) as r:
+                body = r.read()
+                return json.loads(body) if body else True
+        except urllib.error.HTTPError:
+            return False  # 클라이언트는 떠 있는데 그 요청이 안 됨 (큐가 이미 없음 등)
+        except (urllib.error.URLError, TimeoutError, ConnectionError, json.JSONDecodeError, OSError):
+            self.base = None  # 클라이언트가 꺼졌거나 다시 켜졌다(포트가 바뀜). 다음에 다시 찾는다
+            return None
+
+    def phase(self) -> str | None:
+        """None(클라이언트 없음) | Lobby | Matchmaking | ReadyCheck | ChampSelect | InProgress | EndOfGame ..."""
+        p = self._req("GET", "/lol-gameflow/v1/gameflow-phase")
+        return p if isinstance(p, str) else None
+
+    def stop_queue(self) -> str | None:
+        """큐를 돌리고 있으면 취소한다. 막았으면 그때의 단계를 돌려준다"""
+        ph = self.phase()
+        if ph == "ReadyCheck":
+            self._req("POST", "/lol-matchmaking/v1/ready-check/decline")
+            self._req("DELETE", "/lol-lobby/v2/lobby/matchmaking/search")
+            return ph
+        if ph == "Matchmaking":
+            self._req("DELETE", "/lol-lobby/v2/lobby/matchmaking/search")
+            return ph
+        return None
 
 
 # ---------------- 화면 녹화 (ffmpeg) ----------------
@@ -266,13 +349,19 @@ class Server:
                     last_log = time.monotonic()
                     log(f"올리는 중 {done * 100 // size}% ({done >> 20}/{size >> 20}MB)")
 
-    def status(self, state: dict) -> None:
+    def status(self, state: dict) -> dict | None:
         try:
-            self._req("POST", "/api/agent/status", json.dumps(state).encode(), timeout=2)
+            return self._req("POST", "/api/agent/status", json.dumps(state).encode(), timeout=2)
         except (urllib.error.URLError, OSError):
-            pass  # 서버가 꺼져 있어도 녹화는 계속한다
+            return None  # 서버가 꺼져 있어도 녹화는 계속한다
 
-    def deliver(self, rec_dir: Path) -> bool:
+    def blocked(self, phase: str) -> None:
+        try:
+            self._req("POST", "/api/agent/blocked", json.dumps({"phase": phase}).encode(), timeout=2)
+        except (urllib.error.URLError, OSError):
+            pass
+
+    def deliver(self, rec_dir: Path) -> dict | None:
         meta = json.loads((rec_dir / "live.json").read_text())
         try:
             if self.local:
@@ -280,13 +369,13 @@ class Server:
             else:
                 self.upload(meta["id"], rec_dir / "recording.mkv")
                 body = {"upload": meta["id"], "meta": meta}
-            self._req("POST", "/api/agent/recordings", json.dumps(body).encode(), timeout=60)
+            res = self._req("POST", "/api/agent/recordings", json.dumps(body).encode(), timeout=60)
             (rec_dir / "delivered").write_text(time.strftime("%Y-%m-%dT%H:%M:%S"))
             log(f"서버에 넘김: {rec_dir.name}")
-            return True
+            return res if isinstance(res, dict) else {}
         except (urllib.error.URLError, OSError) as e:
             log(f"서버에 넘기지 못했어요. 다음에 다시 시도해요: {e}")
-            return False
+            return None
 
 
 def pending(out_dir: Path) -> list[Path]:
@@ -320,6 +409,8 @@ def main() -> None:
     ap.add_argument("--all-modes", action="store_true", help="연습 모드, 칼바람도 녹화")
     ap.add_argument("--list-screens", action="store_true")
     ap.add_argument("--stop-file", help="이 파일이 생기면 녹화를 마무리하고 끝낸다 (앱이 에이전트를 끌 때)")
+    ap.add_argument("--lcu-lockfile", default=os.environ.get("JUNGLE_LCU_LOCKFILE"),
+                    help="롤 클라이언트 lockfile 위치 (기본: 설치 폴더를 찾거나 실행 중인 클라이언트에서 읽음)")
     args = ap.parse_args()
 
     if not shutil.which("ffmpeg"):
@@ -338,6 +429,18 @@ def main() -> None:
     if not args.token:
         sys.exit("연결 토큰이 필요해요. 웹의 '내 게임 > 녹화 에이전트 연결'에서 복사해 --token으로 넣어 주세요")
     live, server = LiveClient(args.api), Server(args.server, args.token, args.local)
+    lcu = LeagueClient(args.lcu_lockfile)
+    lock_until = 0.0   # 복기 시간: 이때(epoch 초)까지 큐를 막는다. 서버가 정한다
+    lcu_state: str | None = None  # 잠금 중 롤 클라이언트 연결 상태: ok | missing
+
+    def take_lock(res: dict | None) -> None:
+        nonlocal lock_until
+        if isinstance(res, dict) and "lock_until" in res:
+            new = float(res["lock_until"] or 0)
+            if new > time.time() and new != lock_until:
+                log(f"복기 시간: {int(new - time.time()) // 60}분 {int(new - time.time()) % 60}초 동안 큐를 막아요")
+            lock_until = new
+
     rec: Recording | None = None
     last_seen = 0.0
     last_status = 0.0
@@ -392,24 +495,36 @@ def main() -> None:
                 rec.stop()
                 rec.finish()
                 log(f"녹화 끝: {rec.dir} ({rec.meta.get('duration')}초)")
-                server.deliver(rec.dir)
+                take_lock(server.deliver(rec.dir))
                 rec = None
                 give_up = True  # 승패 화면에서도 API가 잠깐 살아 있으니, API가 사라질 때까지 새로 녹화하지 않는다
 
+        locked = time.time() < lock_until
+        if locked and not in_game:
+            ph = lcu.stop_queue()
+            lcu_state = "ok" if lcu.base else "missing"
+            if ph:
+                left = int(lock_until - time.time())
+                log(f"복기 시간이라 큐를 취소했어요 ({ph}, {left // 60}분 {left % 60}초 남음)")
+                server.blocked(ph)
+        elif not locked:
+            lcu_state = None
+
         if now - last_status > 5:
             last_status = now
-            server.status({
+            take_lock(server.status({
                 "state": "recording" if rec else "waiting", "version": VERSION, "platform": platform.system(),
                 "game_time": stats.get("gameTime") if (rec and stats) else None,
                 "champion": (rec.meta.get("me") or {}).get("champion") if rec else None,
                 "elapsed": round(rec.elapsed()) if rec else None,
                 "pending": len(pending(out_dir)),
-            })
+                "lock": lcu_state,
+            }))
             if rec is None:
                 for d in pending(out_dir):
-                    server.deliver(d)
+                    take_lock(server.deliver(d))
                 cleanup(out_dir, args.keep, args.local)
-        time.sleep(POLL)
+        time.sleep(1.0 if locked else POLL)  # 잠금 중엔 큐가 잡히기 전에 취소하려고 더 자주 본다
 
     if rec is not None:
         rec.stop()

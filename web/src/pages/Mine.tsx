@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { api, type AgentInfo, type GameMetrics, type Goal, type Goals, type MyGame, type MyGameDetail } from "../api";
+import { api, type AgentInfo, type GameMetrics, type Goal, type Goals, type Lesson, type MyGame, type MyGameDetail } from "../api";
 import { Dots, ErrorView, isActive, JobSteps, Loading, PageHead, ResultBadge, usePoll, useToast } from "../ui";
 
 const FOLLOWED: Record<string, { label: string; cls: string }> = {
@@ -16,6 +16,7 @@ export default function Mine() {
   const games = usePoll(api.myGames, [], (d) => !!d?.some((g) => isActive(g.job)), 4000);
   const agent = usePoll(api.agent, [], () => true, 5000);
   const goals = usePoll(api.goals, [], () => false);
+  const lessons = usePoll(api.lessons, [], () => false);
 
   if (games.error) return <ErrorView message={games.error} />;
   if (!games.data || !agent.data || !goals.data) return <Loading />;
@@ -26,6 +27,7 @@ export default function Mine() {
         <PageHead title="내 게임" sub="앱을 켜 두면 롤 게임을 자동으로 녹화하고, 판이 끝나면 바로 분석해요." />
         <AgentCard info={agent.data} onChange={agent.reload} />
         <GoalCard goals={goals.data} onChange={goals.reload} />
+        {lessons.data && lessons.data.length > 0 && <LessonsCard items={lessons.data} onChange={lessons.reload} />}
         <div className="mobile-only section"><WeekStats /></div>
         <section className="section">
           <h2 className="section-title">최근 게임</h2>
@@ -38,6 +40,44 @@ export default function Mine() {
       </div>
       <aside className="aside"><WeekStats /></aside>
     </div>
+  );
+}
+
+/* ---------------- 복기 노트: 판마다 총평이 쌓인다 ---------------- */
+function LessonsCard({ items, onChange }: { items: Lesson[]; onChange: () => void }) {
+  const [all, setAll] = useState(false);
+  const fixes = items.filter((l) => l.kind === "mistake");
+  const keeps = items.filter((l) => l.kind === "strength");
+  const Row = ({ l }: { l: Lesson }) => (
+    <li className="lesson">
+      <div className="row" style={{ gap: 8, justifyContent: "space-between" }}>
+        <b>{l.title}</b>
+        <span className="trend" aria-label="최근 판 흐름">
+          {l.trend.map((t, i) => <i key={i} className={t === "again" || t === "first" ? "bad" : "good"} />)}
+        </span>
+      </div>
+      {(l.when_text || l.then_text) && <div className="small">{l.when_text} → {l.then_text}</div>}
+      <div className="caption">
+        판 {l.games}개{l.kind === "mistake" ? ` · 나옴 ${l.again}번${l.better ? ` · 나아짐 ${l.better}번` : ""}` : ""}
+        {l.category ? ` · ${l.category}` : ""}
+        {" · "}<button className="link-btn" onClick={async () => { if (confirm("이 노트를 지울까요?")) { await api.deleteLesson(l.id); onChange(); } }}>지우기</button>
+      </div>
+    </li>
+  );
+  const shown = all ? fixes : fixes.slice(0, 4);
+  return (
+    <section className="section">
+      <h2 className="section-title">내 복기 노트</h2>
+      <p className="small" style={{ marginTop: -8 }}>판이 끝날 때마다 AI 총평이 여기에 쌓여요. 같은 실수가 또 나오면 횟수가 늘고, 다음 판 목표 추천에 먼저 올라와요.</p>
+      {fixes.length > 0 && <ul className="lessons">{shown.map((l) => <Row key={l.id} l={l} />)}</ul>}
+      {fixes.length > 4 && <button className="btn btn-ghost btn-sm" onClick={() => setAll(!all)}>{all ? "접기" : `고칠 것 ${fixes.length}개 모두 보기`}</button>}
+      {keeps.length > 0 && (
+        <>
+          <h3 className="coach-sub">지킬 것</h3>
+          <ul className="lessons">{keeps.slice(0, 3).map((l) => <Row key={l.id} l={l} />)}</ul>
+        </>
+      )}
+    </section>
   );
 }
 
@@ -144,7 +184,7 @@ function GoalCard({ goals, onChange }: { goals: Goals; onChange: () => void }) {
         <div className="card card-tight">
           <div className="goal-suggest">
             {goals.suggestions.map((s) => (
-              <button key={s.rule_id} className="goal-opt" disabled={busy} onClick={() => save(`${s.when} → ${s.then}`, s.rule_id)}>
+              <button key={`${s.rule_id}-${s.when}`} className="goal-opt" disabled={busy} onClick={() => save(`${s.when} → ${s.then}`, s.rule_id)}>
                 <span className="badge badge-grey">{s.category}</span>
                 {s.why && <span className="badge badge-orange">{s.why}</span>}
                 <span className="goal-when">{s.when}</span>
@@ -249,7 +289,7 @@ export function MetricsCard({ m }: { m: GameMetrics }) {
   const obj = Object.entries(m.objectives ?? {});
   return (
     <div className="stats metrics">
-      <div className="stat"><div className="stat-num">{m.kda ? m.kda.join("/") : "–"}</div><div className="stat-label">KDA</div></div>
+      <div className="stat"><div className="stat-num">{m.kda && m.kda.every((x) => x != null) ? m.kda.join("/") : "–"}</div><div className="stat-label">KDA</div></div>
       <div className="stat"><div className="stat-num">{m.cs10 ?? "–"}</div><div className="stat-label">10분 CS</div></div>
       <div className="stat"><div className="stat-num">{m.deaths_before_14}</div><div className="stat-label">14분 전 데스</div></div>
       <div className="stat"><div className="stat-num">{m.early_takedowns}</div><div className="stat-label">8분 전 킬 관여</div></div>

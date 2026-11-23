@@ -195,6 +195,7 @@ export interface Analysis {
   own?: boolean;
   goal_check?: GoalCheck;
   next_goal?: { when: string; then: string; why?: string; rule_id?: string | null };
+  coach?: Coach;
   new_concepts?: string[];
   new_rules?: string[];
   new_quizzes?: string[];
@@ -314,6 +315,12 @@ export const api = {
   goals: () => req<Goals>("/api/goals"),
   setGoal: (text: string, rule_id?: string | null) => req<Goal>("/api/goals", { method: "POST", body: JSON.stringify({ text, rule_id }) }),
   clearGoal: () => req("/api/goals/active", { method: "DELETE" }),
+  debriefActive: () => req<{ active: DebriefState | null }>("/api/debrief/active"),
+  debrief: (id: string) => req<DebriefDetail>(`/api/debrief/${id}`),
+  saveSelfReview: (id: string, body: SelfReview) => req(`/api/debrief/${id}/self`, { method: "PUT", body: JSON.stringify(body) }),
+  finishDebrief: (id: string) => req(`/api/debrief/${id}/done`, { method: "POST" }),
+  lessons: () => req<Lesson[]>("/api/lessons"),
+  deleteLesson: (id: number) => req(`/api/lessons/${id}`, { method: "DELETE" }),
   checkGoal: (id: number, followed: string, note?: string) => req(`/api/goals/${id}`, { method: "PUT", body: JSON.stringify({ followed, note }) }),
   appInfo: () => req<AppInfo>("/api/app"),
   saveSettings: (p: Partial<DeviceSettings>) => req<DeviceSettings>("/api/settings", { method: "PUT", body: JSON.stringify(p) }),
@@ -336,6 +343,9 @@ export interface Profile {
   role: string | null;
   weekly_games: number | null;
   goal_tier: string | null;
+  auto_analyze?: number;
+  review_lock?: number;
+  review_minutes?: number;
 }
 export interface TrainItem {
   id: string;
@@ -394,7 +404,7 @@ export const gamePath = (gameRef: string, ref?: string) => {
 };
 
 /* ---------- 내 게임 ---------- */
-export interface AgentStatus { state: "waiting" | "recording" | "off"; version: string; platform: string; game_time: number | null; champion: string | null; elapsed: number | null; pending: number }
+export interface AgentStatus { state: "waiting" | "recording" | "off"; version: string; platform: string; game_time: number | null; champion: string | null; elapsed: number | null; pending: number; lock?: "ok" | "missing" | null }
 export interface AgentInfo {
   online: boolean;
   status: AgentStatus | null;
@@ -406,7 +416,7 @@ export interface Goal { id: number; text: string; rule_id: string | null; game_i
 export interface Goals {
   active: Goal | null;
   history: Goal[];
-  suggestions: { rule_id: string; category: string; when: string; then: string; why: string | null }[];
+  suggestions: { rule_id: string | null; category: string | null; when: string; then: string; why: string | null }[];
 }
 export interface GameMetrics {
   result: string | null;
@@ -435,6 +445,28 @@ export interface MyGame {
   analyzed: boolean;
   job: Job | null;
   goal: Goal | null;
+}
+/* ---------- 판 끝난 뒤 복기 ---------- */
+export interface CoachPoint { title: string; t?: string; ref?: string; what: string; better?: string; rule_id?: string | null;
+  pro?: { text: string; vod?: string; game?: number; ref?: string } | null }
+export interface CoachLesson { lesson_id: number | null; kind: "mistake" | "strength"; category?: string; title: string; when?: string; then?: string;
+  rule_id?: string | null; outcome: "again" | "better" | "first" | "kept"; t?: string; ref?: string; note?: string }
+export interface Coach { headline: string; fixes: CoachPoint[]; keeps: CoachPoint[]; self_check?: string | null; lessons?: CoachLesson[] }
+export interface DebriefState { game_id: string; lock_until: number | null; remaining: number; locked: boolean; blocked: number; self_done: boolean; done: string | null }
+export interface SelfReview { deaths: { t: string; reason?: string; note?: string }[]; moment?: string; good?: string; goal?: string | null }
+export interface DebriefDetail extends MyGame {
+  debrief: DebriefState | null;
+  self: SelfReview | null;
+  deaths: { t: string; sec: number; killer: string | null; assisters: number }[];
+  reasons: string[];
+  coach: Coach | null;
+  next_goal: Analysis["next_goal"] | null;
+  goal_check: GoalCheck | null;
+}
+export interface Lesson {
+  id: number; kind: "mistake" | "strength"; category: string | null; title: string; when_text: string | null; then_text: string | null;
+  rule_id: string | null; created: string; updated: string; games: number; again: number; better: number;
+  trend: string[]; hits: { game_id: string; outcome: string; t: string | null; ref: string | null; note: string | null; game_title?: string; played?: string }[];
 }
 export interface MyGameDetail extends MyGame, Omit<GameDetail, "analysis"> { analysis: Analysis | null }
 export interface MyStats {
