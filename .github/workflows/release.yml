@@ -74,7 +74,12 @@ jobs:
         run: |
           uv lock --check
           uv sync --frozen --no-dev
-          uv pip install httpx
+          uv pip install httpx pytest
+
+      - name: 단위 테스트 (조각 합치기, 복기 잠금, 목표, 공유 콘텐츠, 큐 막기)
+        env:
+          PYTHONUTF8: "1"
+        run: uv run --no-sync python -m pytest tests -q
 
       - name: 스모크 테스트
         shell: pwsh

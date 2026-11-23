@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
+<style>
+  /* 게임 위에 잠깐 뜨는 목표 카드. 클릭은 아래(게임)로 통과한다 */
+  html, body { margin: 0; background: transparent; overflow: hidden; font-family: "Pretendard", "Malgun Gothic", -apple-system, sans-serif; }
+  .card {
+    margin: 8px; padding: 14px 20px 16px; border-radius: 16px;
+    background: rgba(25, 31, 40, 0.88); color: #fff; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+    opacity: 0; transform: translateY(-8px); transition: opacity .25s, transform .25s;
+  }
+  .card.on { opacity: 1; transform: none; }
+  .label { font-size: 13px; font-weight: 600; color: #90c2ff; margin-bottom: 4px; display: flex; justify-content: space-between; gap: 12px; }
+  .label .sub { color: #b0b8c1; font-weight: 500; }
+  .text { font-size: 18px; font-weight: 700; line-height: 1.4; word-break: keep-all; }
+</style>
+</head>
+<body>
+<div class="card" id="card"><div class="label"><span id="title"></span><span class="sub" id="sub"></span></div><div class="text" id="text"></div></div>
+<script>
+  const card = document.getElementById("card");
+  window.desktop && window.desktop.onOverlay((d) => {
+    if (!d) { card.classList.remove("on"); return; }
+    document.getElementById("title").textContent = d.title || "";
+    document.getElementById("sub").textContent = d.sub || "";
+    document.getElementById("text").textContent = d.text || "";
+    card.classList.add("on");
+  });
+</script>
+</body>
+</html>

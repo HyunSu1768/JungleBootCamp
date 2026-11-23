@@ -4,7 +4,7 @@
 // - GitHub 릴리스에서 새 버전을 받아 자동으로 업데이트한다.
 "use strict";
 
-const { app, BrowserWindow, Tray, Menu, ipcMain, shell, dialog, nativeImage, Notification } = require("electron");
+const { app, BrowserWindow, Tray, Menu, ipcMain, shell, dialog, nativeImage, Notification, screen } = require("electron");
 const { spawn, execFile } = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
@@ -274,6 +274,83 @@ function watchDebrief() {
   }, 3000);
 }
 
+// ---------- 판 중 목표 알림 (오버레이) ----------
+// 실행 의도(이러면 → 이렇게)는 그 상황 직전에 떠올라야 효과가 있다. 게임 위에 잠깐 띄우고, 포커스와 클릭은 뺏지 않는다.
+// 롤은 '테두리 없음' 창 모드에서 보인다(전체 화면 모드에선 게임이 화면을 독점해서 안 보인다).
+let overlay = null;
+let overlayReady = null;
+const ov = { timer: null, start: false, slot: -1, deaths: 0, champ: false, inGame: false };
+
+function overlayWindow() {
+  if (overlay && !overlay.isDestroyed()) return overlay;
+  const d = screen.getPrimaryDisplay().bounds;
+  const width = 600;
+  overlay = new BrowserWindow({
+    width, height: 170, x: d.x + Math.round((d.width - width) / 2), y: d.y + 56,
+    frame: false, transparent: true, resizable: false, movable: false, focusable: false, skipTaskbar: true,
+    show: false, hasShadow: false, alwaysOnTop: true, backgroundColor: "#00000000",
+    webPreferences: { preload: path.join(__dirname, "preload.js"), contextIsolation: true, sandbox: true },
+  });
+  overlay.setAlwaysOnTop(true, "screen-saver");
+  overlay.setIgnoreMouseEvents(true);
+  overlay.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  overlayReady = overlay.loadFile(path.join(__dirname, "overlay.html"));
+  return overlay;
+}
+
+async function showOverlay(msg, ms) {
+  const w = overlayWindow();
+  await overlayReady;
+  w.webContents.send("overlay", msg);
+  if (!w.isVisible()) w.showInactive();
+  clearTimeout(ov.timer);
+  ov.timer = ms ? setTimeout(hideOverlay, ms) : null;
+}
+
+function hideOverlay() {
+  clearTimeout(ov.timer);
+  if (overlay && !overlay.isDestroyed() && overlay.isVisible()) {
+    overlay.webContents.send("overlay", null);
+    setTimeout(() => overlay && !overlay.isDestroyed() && overlay.hide(), 300);
+  }
+}
+
+function watchOverlay() {
+  setInterval(async () => {
+    if (!port) return;
+    const r = await getJson(`${appUrl()}api/overlay`);
+    if (!r || !r.enabled || !r.goal) { if (ov.champ || ov.inGame) hideOverlay(); return; }
+    const p = r.progress;
+    const sub = p && p.games > 0 ? `${p.games + 1}판째 · ${p.streak}/${p.need}판 연속 지킴` : "";
+    const inGame = r.state === "recording" && r.game_time != null;
+    if (inGame) {
+      if (!ov.inGame) Object.assign(ov, { inGame: true, start: false, slot: -1, deaths: r.deaths || 0, champ: false });
+      const t = r.game_time;
+      if (!ov.start && t < 90) {
+        ov.start = true;
+        showOverlay({ title: "이번 판 목표", sub, text: r.goal }, 12000);
+      } else if ((r.deaths || 0) > ov.deaths) {
+        ov.deaths = r.deaths;
+        showOverlay({ title: "부활하면서 다시 보기", sub, text: r.goal }, 10000);
+      } else {
+        const slot = Math.floor(t / 300);  // 5분마다 한 번
+        if (slot >= 1 && slot !== ov.slot && t % 300 < 30) {
+          ov.slot = slot;
+          showOverlay({ title: `${slot * 5}분 · 목표 다시 보기`, sub, text: r.goal }, 7000);
+        }
+      }
+      return;
+    }
+    if (ov.inGame) { ov.inGame = false; hideOverlay(); }
+    if (r.phase === "ChampSelect") {
+      if (!ov.champ) { ov.champ = true; showOverlay({ title: "이번 판 목표", sub, text: r.goal }, 0); }
+    } else if (ov.champ) {
+      ov.champ = false;
+      hideOverlay();
+    }
+  }, 2000);
+}
+
 function createTray() {
   const icon = nativeImage.createFromPath(path.join(__dirname, "build", "icon.png")).resize({ width: 16, height: 16 });
   tray = new Tray(icon);
@@ -384,10 +461,16 @@ async function boot() {
     await win.loadURL(appUrl());
     setupUpdater();
     watchDebrief();
+    watchOverlay();
     if (process.env.JUNGLE_DEV_SNAPSHOT) {
       // 개발 확인용: 화면을 파일로 저장하고 끝낸다
       setTimeout(async () => {
         fs.writeFileSync(process.env.JUNGLE_DEV_SNAPSHOT, (await win.webContents.capturePage()).toPNG());
+        if (process.env.JUNGLE_DEV_OVERLAY) {  // 오버레이 모양 확인용
+          await showOverlay(JSON.parse(process.env.JUNGLE_DEV_OVERLAY), 0);
+          await new Promise((res) => setTimeout(res, 800));
+          fs.writeFileSync(process.env.JUNGLE_DEV_SNAPSHOT.replace(/\.png$/, "-overlay.png"), (await overlay.webContents.capturePage()).toPNG());
+        }
         quit();
       }, 4000);
     }

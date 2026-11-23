@@ -26,12 +26,12 @@ export default function Train() {
   const [err, setErr] = useState<string | null>(null);
   const [params, setParams] = useSearchParams();
 
-  // ?start=10 으로 바로 시작 (알림, 다른 화면의 "지금 훈련" 링크)
+  // ?start=10 으로 바로 시작 (알림, 다른 화면의 "지금 훈련" 링크). &game=<판>이면 그 판의 판단만 (복기 시간)
   useEffect(() => {
     const n = Number(params.get("start"));
     if (!n) return;
     setParams({}, { replace: true });
-    void api.trainSession(n, params.get("category"), params.get("source") ?? "all").then(({ items }) => items.length && setSession(items));
+    void api.trainSession(n, params.get("category"), params.get("source") ?? "all", params.get("game")).then(({ items }) => items.length && setSession(items));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

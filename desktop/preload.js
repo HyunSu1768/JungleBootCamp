@@ -16,4 +16,5 @@ contextBridge.exposeInMainWorld("desktop", {
   getOpenAtLogin: () => ipcRenderer.invoke("login-item:get"),
   setOpenAtLogin: (on) => ipcRenderer.invoke("login-item:set", on),
   onSplash: (cb) => ipcRenderer.on("splash", (_e, m) => cb(m)),
+  onOverlay: (cb) => ipcRenderer.on("overlay", (_e, d) => cb(d)),
 });

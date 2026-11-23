@@ -60,7 +60,7 @@ hide_console_windows()
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # Windows 콘솔에서 한글 로그
 
-VERSION = "0.2.0"
+VERSION = "0.3.0"
 CHUNK = 16 << 20    # 업로드 조각 16MB
 SSL = ssl.create_default_context()
 SSL.check_hostname = False
@@ -123,6 +123,7 @@ class LeagueClient:
         self.base: str | None = None
         self.auth = ""
         self._ps_at = 0.0
+        self.last_phase: str | None = None
 
     def _connect(self) -> bool:
         for f in _lockfile_candidates(self.lockfile):
@@ -132,7 +133,7 @@ class LeagueClient:
                 continue
             self.base, self.auth = f"{proto}://127.0.0.1:{port}", pw
             return True
-        if platform.system() == "Windows" and not self.lockfile and time.monotonic() - self._ps_at > 15:
+        if platform.system() == "Windows" and not self.lockfile and time.monotonic() - self._ps_at > 30:
             self._ps_at = time.monotonic()
             try:
                 out = subprocess.run(
@@ -166,7 +167,8 @@ class LeagueClient:
     def phase(self) -> str | None:
         """None(클라이언트 없음) | Lobby | Matchmaking | ReadyCheck | ChampSelect | InProgress | EndOfGame ..."""
         p = self._req("GET", "/lol-gameflow/v1/gameflow-phase")
-        return p if isinstance(p, str) else None
+        self.last_phase = p if isinstance(p, str) else None
+        return self.last_phase
 
     def stop_queue(self) -> str | None:
         """큐를 돌리고 있으면 취소한다. 막았으면 그때의 단계를 돌려준다"""
@@ -283,6 +285,14 @@ class Recording:
         if err:
             log("ffmpeg: " + err[-500:])
         self.meta["duration"] = round(self.elapsed(), 1)
+
+    def deaths(self) -> int:
+        """이 판에서 내가 죽은 횟수 (판 중 목표 알림이 부활할 때 목표를 다시 띄운다)"""
+        me = (self.meta.get("me") or {}).get("riot_id")
+        if not me:
+            return 0
+        base = lambda n: (n or "").split("#")[0].strip().lower()  # noqa: E731
+        return sum(1 for e in self.events.values() if e.get("EventName") == "ChampionKill" and base(e.get("VictimName")) == base(me))
 
     def observe(self, live: LiveClient, stats: dict) -> None:
         gt = stats.get("gameTime")
@@ -432,6 +442,7 @@ def main() -> None:
     lcu = LeagueClient(args.lcu_lockfile)
     lock_until = 0.0   # 복기 시간: 이때(epoch 초)까지 큐를 막는다. 서버가 정한다
     lcu_state: str | None = None  # 잠금 중 롤 클라이언트 연결 상태: ok | missing
+    last_sig: tuple = (None, None)
 
     def take_lock(res: dict | None) -> None:
         nonlocal lock_until
@@ -509,9 +520,12 @@ def main() -> None:
                 server.blocked(ph)
         elif not locked:
             lcu_state = None
+            if not in_game:
+                lcu.phase()  # 챔피언 선택에 들어가면 앱이 이번 판 목표를 띄운다
 
-        if now - last_status > 5:
-            last_status = now
+        sig = ("InProgress" if in_game else lcu.last_phase, rec.deaths() if rec else None)
+        if now - last_status > 5 or sig != last_sig:  # 챔피언 선택 진입, 데스는 바로 알린다
+            last_status, last_sig = now, sig
             take_lock(server.status({
                 "state": "recording" if rec else "waiting", "version": VERSION, "platform": platform.system(),
                 "game_time": stats.get("gameTime") if (rec and stats) else None,
@@ -519,6 +533,8 @@ def main() -> None:
                 "elapsed": round(rec.elapsed()) if rec else None,
                 "pending": len(pending(out_dir)),
                 "lock": lcu_state,
+                "phase": "InProgress" if in_game else lcu.last_phase,
+                "deaths": rec.deaths() if rec else None,
             }))
             if rec is None:
                 for d in pending(out_dir):

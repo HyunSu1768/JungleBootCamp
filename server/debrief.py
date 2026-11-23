@@ -136,6 +136,9 @@ def detail(gid: str, uid: str = Depends(db.current_user)):
     analysis = None
     if view["analyzed"]:
         analysis = json.loads((root / "game1" / "analysis.json").read_text())
+    from . import training
+    game_ref = f"{row['dir']}/game1"
+    drills = [it for it in training.catalog().values() if it["game_ref"] == game_ref]
     return {
         **view,
         "debrief": _brief(d) if d else None,
@@ -145,6 +148,9 @@ def detail(gid: str, uid: str = Depends(db.current_user)):
         "coach": (analysis or {}).get("coach"),
         "next_goal": (analysis or {}).get("next_goal"),
         "goal_check": (analysis or {}).get("goal_check"),
+        "game_ref": game_ref,
+        "drills": len(drills),
+        "drills_bad": sum(it["verdict"] == "아쉬운 선택" for it in drills),
     }
 
 
@@ -167,7 +173,9 @@ def save_self(gid: str, body: SelfReview, uid: str = Depends(db.current_user)):
     db.x("UPDATE debriefs SET self = ? WHERE game_id = ?", (db.dumps(data), row["id"]))
     # 목표를 지켰는지는 본인 판단을 먼저 넣는다 (분석 판정은 본인이 안 골랐을 때만 들어간다)
     if body.goal in ("yes", "partial", "no", "na") and row.get("goal_id"):
+        from .mine import after_goal_check
         db.x("UPDATE goals SET followed = ? WHERE id = ? AND user_id = ?", (body.goal, row["goal_id"], uid))
+        after_goal_check(uid)
     return {"ok": True}
 
 
@@ -305,6 +313,17 @@ def coach_context(uid: str, gid: str, gdir: Path) -> Path:
     else:
         lines.append("- 아직 안 했어요. self_check는 null로.")
 
+    from .mine import active_goal, goal_progress
+    g = db.q("SELECT g.* FROM goals g JOIN my_games m ON m.goal_id = g.id WHERE m.id = ?", (gid,))
+    cur = g[0] if g else active_goal(uid)
+    lines += ["", "## 지금 목표 (지킬 때까지 판을 넘어 이어짐)", ""]
+    if cur:
+        pr = goal_progress(uid, cur["text"])
+        mark = {"yes": "○", "partial": "△", "no": "✗", "na": "-", None: "?"}
+        lines.append(f"- {cur['text']} (이 목표로 {pr['games']}판, 지킴 {pr['kept']}판, 최근 흐름 "
+                     f"{' '.join(mark.get(h, '?') for h in pr['history'])}, 연속 {pr['streak']}/{pr['need']}판이면 다음 목표로)")
+    else:
+        lines.append("- 없어요. next_goal이 첫 목표가 돼요.")
     lines += ["", "## 2. 지난 판들에서 쌓인 복기 노트 (lesson_id로 이어 쓰기)", ""]
     ls = lessons(uid, 30)
     if ls:

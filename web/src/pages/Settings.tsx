@@ -33,7 +33,14 @@ export default function Settings() {
         </label>
       </section>
       <section className="section">
-        <h2 className="section-title">판이 끝나면 복기</h2>
+        <h2 className="section-title">목표와 복기</h2>
+        {app.data.desktop && (
+          <label className="setting" style={{ marginBottom: 16 }}>
+            <div><b>판 중에 목표 띄우기</b><div className="small">챔피언 선택, 게임 시작, 5분마다, 죽었을 때 화면 위쪽에 지금 목표를 잠깐 띄워요. 클릭은 게임으로 그대로 가요. 롤을 '테두리 없음' 창 모드로 해야 보여요.</div></div>
+            <input type="checkbox" className="switch" checked={app.data.settings.overlay !== false}
+              onChange={async (e) => { await api.saveSettings({ overlay: e.target.checked }); app.reload(); }} />
+          </label>
+        )}
         <label className="setting">
           <div><b>복기 시간 동안 큐 막기</b><div className="small">판이 끝나면 복기 화면을 띄우고, 정한 시간 동안 롤 클라이언트에서 큐를 돌리면 취소해요. 바꾸면 다음 판부터 적용돼요.</div></div>
           <input type="checkbox" className="switch" checked={p.review_lock !== 0}

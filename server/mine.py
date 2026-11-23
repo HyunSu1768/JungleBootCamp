@@ -88,6 +88,21 @@ def revoke_tokens(uid: str = Depends(db.current_user)):
     return {"ok": True}
 
 
+@router.get("/api/overlay")
+def overlay(uid: str = Depends(db.current_user)):
+    """데스크톱 앱의 판 중 목표 알림: 챔피언 선택, 게임 시작, 5분마다, 죽었을 때 지금 목표를 띄운다"""
+    from .system import settings
+    st = STATUS.get(uid)
+    online = bool(st and time.time() - st["at"] < 20 and st.get("state") != "off")
+    goal = active_goal(uid)
+    # 게임 중에는 이 판에 연결된 목표가 아직 없다(판이 끝나야 연결). 지금 목표가 곧 이 판 목표다
+    return {"enabled": bool(settings().get("overlay", True)), "online": online,
+            "state": st.get("state") if online else None, "phase": st.get("phase") if online else None,
+            "game_time": st.get("game_time") if online else None, "deaths": st.get("deaths") if online else None,
+            "goal": goal["text"] if goal else None,
+            "progress": goal_progress(uid, goal["text"]) if goal else None}
+
+
 @router.get("/api/agent/recorder.py")
 def agent_script():
     """Windows PC에서 바로 내려받게 (curl -o recorder.py http://<서버>/api/agent/recorder.py)"""
@@ -97,7 +112,7 @@ def agent_script():
 @router.post("/api/agent/status")
 def agent_status(body: dict, authorization: str | None = Header(default=None)):
     uid = agent_user(authorization)
-    STATUS[uid] = {**{k: body.get(k) for k in ("state", "version", "platform", "game_time", "champion", "elapsed", "pending", "lock")}, "at": time.time()}
+    STATUS[uid] = {**{k: body.get(k) for k in ("state", "version", "platform", "game_time", "champion", "elapsed", "pending", "lock", "phase", "deaths")}, "at": time.time()}
     db.x("UPDATE agent_tokens SET last_seen = ? WHERE hash = ?", (db.now(), _hash(authorization[7:].strip())))
     return {"ok": True, "lock_until": debrief.lock_until(uid) or None}  # 복기 시간이면 에이전트가 큐를 막는다
 
@@ -235,6 +250,61 @@ def active_goal(uid: str) -> dict | None:
     return rows[0] if rows else None
 
 
+# 목표는 한 번에 하나, 지킬 때까지 판을 넘어 이어진다. 연속으로 MASTER판 지키면(상황이 안 나온 판은 빼고) 다음 목표로
+MASTER = 2
+
+
+def goal_progress(uid: str, text: str) -> dict:
+    rows = db.q("""SELECT followed FROM goals WHERE user_id = ? AND text = ? AND game_id IS NOT NULL
+                   ORDER BY id DESC LIMIT 20""", (uid, text))
+    streak = 0
+    for r in rows:  # 최근 판부터
+        if r["followed"] in (None, "na"):  # 아직 판정 전이거나 그 상황이 안 나온 판
+            continue
+        if r["followed"] != "yes":
+            break
+        streak += 1
+    return {"games": len(rows), "kept": sum(r["followed"] == "yes" for r in rows), "streak": streak,
+            "history": [r["followed"] for r in reversed(rows)], "mastered": streak >= MASTER, "need": MASTER}
+
+
+def set_active_goal(uid: str, text: str, rule_id: str | None, source: str) -> dict | None:
+    db.x("DELETE FROM goals WHERE user_id = ? AND game_id IS NULL", (uid,))  # 다음 판 목표는 하나만
+    db.x("INSERT INTO goals (user_id, rule_id, text, created, source) VALUES (?, ?, ?, ?, ?)",
+         (uid, rule_id, text[:200], db.now(), source))
+    return active_goal(uid)
+
+
+def coach_next_goal(uid: str, exclude: str | None = None) -> dict | None:
+    """가장 최근 총평들이 추천한 다음 목표 중 지금 목표와 다른 것"""
+    for r in db.q("SELECT dir FROM my_games WHERE user_id = ? ORDER BY created DESC LIMIT 5", (uid,)):
+        try:
+            ng = json.loads((VODS / r["dir"] / "game1" / "analysis.json").read_text()).get("next_goal") or {}
+        except (FileNotFoundError, json.JSONDecodeError):
+            continue
+        if ng.get("when") and ng.get("then"):
+            text = f"{ng['when']} → {ng['then']}"
+            if text != exclude:
+                return {"text": text, "rule_id": ng.get("rule_id"), "why": ng.get("why")}
+    return None
+
+
+def after_goal_check(uid: str) -> None:
+    """목표 판정이 바뀔 때마다: 지금 목표를 다 익혔으면 총평이 추천한 다음 목표로 넘어간다. 목표가 없으면 추천으로 채운다"""
+    cur = active_goal(uid)
+    if cur and goal_progress(uid, cur["text"])["mastered"]:
+        nxt = coach_next_goal(uid, exclude=cur["text"])
+        if nxt:
+            set_active_goal(uid, nxt["text"], nxt["rule_id"], "coach")
+        else:
+            db.x("DELETE FROM goals WHERE id = ?", (cur["id"],))
+        return
+    if not cur:
+        nxt = coach_next_goal(uid)
+        if nxt and not goal_progress(uid, nxt["text"])["mastered"]:
+            set_active_goal(uid, nxt["text"], nxt["rule_id"], "coach")
+
+
 def register(uid: str, gid: str, root: Path, meta: dict) -> dict:
     (root / "live.json").write_text(json.dumps(meta, ensure_ascii=False))
     m = compute_metrics(meta)
@@ -256,6 +326,8 @@ def register(uid: str, gid: str, root: Path, meta: dict) -> dict:
           goal["id"] if goal else None, db.dumps(m), m["role"]))
     if goal:
         db.x("UPDATE goals SET game_id = ? WHERE id = ?", (gid, goal["id"]))
+        # 지킬 때까지 같은 목표로 다음 판도 (다 익혔는지는 이 판 판정이 나온 뒤 after_goal_check가 본다)
+        set_active_goal(uid, goal["text"], goal.get("rule_id"), "carry")
     # 판이 끝나면 복기 시간: 잠그고(에이전트가 큐를 막는다) 복기 화면을 띄운다
     debrief.start(uid, gid, meta)
     job = None
@@ -383,7 +455,10 @@ def goals(uid: str = Depends(db.current_user)):
              "why": f"내 복기 노트에서 {le['again']}번 나온 실수"}
             for le in debrief.lessons(uid) if le["kind"] == "mistake" and le["again"] >= 2 and le.get("when_text") and le.get("then_text")]
     suggestions = (mine[:3] + [s for s in suggestions if s["rule_id"] not in {m["rule_id"] for m in mine if m["rule_id"]}])[:6]
-    return {"active": active_goal(uid), "history": history, "suggestions": suggestions}
+    act = active_goal(uid)
+    return {"active": act, "history": history, "suggestions": suggestions,
+            "progress": goal_progress(uid, act["text"]) if act else None,
+            "coach_next": coach_next_goal(uid, exclude=act["text"] if act else None)}
 
 
 class GoalIn(BaseModel):
@@ -396,9 +471,7 @@ def set_goal(body: GoalIn, uid: str = Depends(db.current_user)):
     text = body.text.strip()[:200]
     if not text:
         raise HTTPException(400, "목표를 적어 주세요")
-    db.x("DELETE FROM goals WHERE user_id = ? AND game_id IS NULL", (uid,))  # 다음 판 목표는 하나만
-    db.x("INSERT INTO goals (user_id, rule_id, text, created) VALUES (?, ?, ?, ?)", (uid, body.rule_id, text, db.now()))
-    return active_goal(uid)
+    return set_active_goal(uid, text, body.rule_id, "user")
 
 
 class GoalCheck(BaseModel):
@@ -411,6 +484,7 @@ def check_goal(goal_id: int, body: GoalCheck, uid: str = Depends(db.current_user
     if body.followed not in ("yes", "partial", "no", "na"):
         raise HTTPException(400, "followed 값이 이상해요")
     db.x("UPDATE goals SET followed = ?, note = ? WHERE id = ? AND user_id = ?", (body.followed, body.note, goal_id, uid))
+    after_goal_check(uid)
     return {"ok": True}
 
 

@@ -44,8 +44,21 @@ export default function Debrief() {
         {d.coach ? <CoachView coach={d.coach} gameId={d.id} /> : <CoachPending d={d} onChange={reload} />}
       </section>
 
+      {d.drills > 0 && (
+        <section className="section">
+          <h2 className="section-title"><span className="step-no">3</span>이 판 장면으로 다시 풀기</h2>
+          <div className="card card-tight video-fetch">
+            <div>
+              <b>이 판의 판단 {d.drills}개{d.drills_bad ? ` (아쉬웠던 것 ${d.drills_bad}개 먼저)` : ""}</b>
+              <div className="small">장면이 판단 직전에 멈추면 그때 했어야 할 선택을 골라요. 읽는 것보다 직접 떠올려야 다음 판에 나와요. 틀린 건 간격을 두고 다시 나와요.</div>
+            </div>
+            <Link className="btn btn-primary btn-sm" to={`/?start=${Math.min(d.drills, 12)}&game=${encodeURIComponent(d.game_ref)}`}>풀기</Link>
+          </div>
+        </section>
+      )}
+
       <section className="section">
-        <h2 className="section-title"><span className="step-no">3</span>다음 판</h2>
+        <h2 className="section-title"><span className="step-no">{d.drills > 0 ? 4 : 3}</span>다음 판</h2>
         <NextStep d={d} onChange={reload} />
       </section>
     </div>

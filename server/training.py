@@ -20,7 +20,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from . import db
-from .jobs import VODS
+from .jobs import KB, VODS
 
 router = APIRouter(prefix="/api/train")
 
@@ -207,9 +207,33 @@ def own_mistake_categories(uid: str) -> dict[str, int]:
     return out
 
 
+def focus_categories(uid: str) -> dict[str, int]:
+    """지금 고치는 중인 유형: 복기 노트에서 반복한 실수 + 지금 목표의 유형. 값이 클수록 먼저"""
+    out: dict[str, int] = {}
+    for r in db.q("""SELECT l.category, SUM(CASE WHEN h.outcome IN ('again', 'first') THEN 1 ELSE 0 END) n
+                     FROM lessons l JOIN lesson_hits h ON h.lesson_id = l.id
+                     WHERE l.user_id = ? AND l.kind = 'mistake' AND l.category IS NOT NULL GROUP BY l.category""", (uid,)):
+        if r["n"]:
+            out[r["category"]] = out.get(r["category"], 0) + int(r["n"])
+    goal = db.q("SELECT rule_id FROM goals WHERE user_id = ? AND game_id IS NULL ORDER BY id DESC LIMIT 1", (uid,))
+    if goal and goal[0]["rule_id"]:
+        try:
+            rules = json.loads((KB / "rules.json").read_text())
+        except (FileNotFoundError, json.JSONDecodeError):
+            rules = []
+        cat = next((r.get("category") for r in rules if r.get("id") == goal[0]["rule_id"]), None)
+        if cat:
+            out[cat] = out.get(cat, 0) + 3
+    return out
+
+
 # ---------- 세션 ----------
-def build_session(uid: str, n: int, category: str | None, source: str) -> list[dict]:
+def build_session(uid: str, n: int, category: str | None, source: str, game: str | None = None) -> list[dict]:
     items = [it for it in catalog().values() if visible(it, uid)]
+    if game:  # 방금 한 판처럼 한 판의 판단만 (복기 시간에 바로 풀기)
+        items = [it for it in items if it["game_ref"] == game]
+        order = sorted(items, key=lambda it: (it["verdict"] != "아쉬운 선택", _secs(it["ingame"]) or 0))
+        return order[:n]
     if category:
         items = [it for it in items if it["category"] == category]
     if source == "mine":
@@ -220,18 +244,20 @@ def build_session(uid: str, n: int, category: str | None, source: str) -> list[d
     today = db.today()
     weak = category_stats(uid)
     mistakes = own_mistake_categories(uid)
+    focus = focus_categories(uid)
 
     def priority(it: dict) -> tuple:
         s = srs.get(it["id"])
         if s:
             if s["due"] > today:
-                return (9, 0, 0)  # 아직 때가 아님
+                return (9, 0, 0, 0)  # 아직 때가 아님
             sure_wrong = s["last_correct"] == 0 and s["last_confidence"] == 2
-            return (0 if sure_wrong else 1, s["due"], random.random())
-        # 새 문제: 내 실수 → 내 약점 카테고리 → 나머지
+            return (0 if sure_wrong else 1, 0, s["due"], random.random())
+        # 새 문제: 내 실수 → 지금 고치는 유형(복기 노트, 목표)의 문제 → 내 약점 카테고리 → 나머지
         own_mistake = it["own"] and it["verdict"] == "아쉬운 선택"
         w = weak.get(it["category"], {}).get("rate", 0.6) - 0.1 * min(mistakes.get(it["category"], 0), 3)
-        return (2 if own_mistake else 3, round(w, 2), random.random())
+        tier = 2 if own_mistake else 3 if focus.get(it["category"]) else 4
+        return (tier, -focus.get(it["category"], 0), round(w, 2), random.random())
 
     pool = sorted((it for it in items if priority(it)[0] < 9), key=priority)[: n * 3]
     # 섞기: 같은 카테고리, 같은 판이 연달아 나오지 않게
@@ -278,8 +304,9 @@ def overview(uid: str = Depends(db.current_user)):
 
 
 @router.get("/session")
-def session(n: int = 10, category: str | None = None, source: str = "all", uid: str = Depends(db.current_user)):
-    items = build_session(uid, max(1, min(n, 30)), category, source)
+def session(n: int = 10, category: str | None = None, source: str = "all", game: str | None = None,
+            uid: str = Depends(db.current_user)):
+    items = build_session(uid, max(1, min(n, 30)), category, source, game)
     out = []
     for it in items:
         order = list(range(len(it["options"])))

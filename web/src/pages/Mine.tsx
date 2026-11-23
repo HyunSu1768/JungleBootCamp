@@ -170,11 +170,15 @@ function GoalCard({ goals, onChange }: { goals: Goals; onChange: () => void }) {
   return (
     <section className="section">
       <h2 className="section-title">다음 판 목표</h2>
-      <p className="small" style={{ marginTop: -8 }}>판 중에 떠올릴 "이러면 → 이렇게" 하나만 정해요. 판이 끝나면 지켰는지 분석에서 확인해요.</p>
+      <p className="small" style={{ marginTop: -8 }}>판 중에 떠올릴 "이러면 → 이렇게" 하나만 정해요. {goals.progress?.need ?? 2}판 연속 지킬 때까지 같은 목표로 가요.</p>
       {active && !editing ? (
         <div className="card card-blue goal-active">
-          <div className="card-label">다음 판에서 지킬 것</div>
+          <div className="card-label">다음 판에서 지킬 것{active.source === "coach" ? " · 총평 추천" : ""}</div>
           <div className="goal-text">{active.text}</div>
+          {goals.progress && goals.progress.games > 0 && <GoalStreak p={goals.progress} />}
+          {goals.coach_next && (
+            <p className="small" style={{ marginBottom: 0 }}>다 익히면 다음 목표: {goals.coach_next.text}</p>
+          )}
           <div className="row" style={{ marginTop: 12 }}>
             <button className="btn btn-ghost btn-sm" onClick={() => setEditing(true)}>바꾸기</button>
             <button className="btn btn-ghost btn-sm" onClick={async () => { await api.clearGoal(); onChange(); }}>목표 없이 하기</button>
@@ -202,6 +206,24 @@ function GoalCard({ goals, onChange }: { goals: Goals; onChange: () => void }) {
       )}
       {last.length > 0 && <p className="caption" style={{ marginTop: 8 }}>최근 목표 {last.length}판 중 {kept}판 지켰어요.</p>}
     </section>
+  );
+}
+
+const STREAK_MARK: Record<string, [string, string]> = { yes: ["○", "good"], partial: ["△", "mid"], no: ["✕", "bad"], na: ["–", "na"] };
+
+/** 이 목표로 한 판들: 지켰나 흐름, 몇 판 더 연속으로 지키면 다음 목표인지 */
+export function GoalStreak({ p }: { p: import("../api").GoalProgress }) {
+  const left = Math.max(0, p.need - p.streak);
+  return (
+    <div className="goal-streak">
+      <span className="streak-marks" aria-label="이 목표로 한 판들">
+        {p.history.slice(-8).map((h, i) => {
+          const [m, c] = STREAK_MARK[h ?? ""] ?? ["?", "na"];
+          return <i key={i} className={c} title={h ?? "판정 전"}>{m}</i>;
+        })}
+      </span>
+      <span className="small">{p.games}판째 · {p.mastered ? "다 익혔어요" : `${left}판 더 연속으로 지키면 다음 목표로`}</span>
+    </div>
   );
 }
 

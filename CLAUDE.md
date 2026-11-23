@@ -16,6 +16,10 @@
 5. 예측 훈련: `server/training.py`가 모든 분석의 판단 포인트(`turns.ally[].decisions`)를 문제로 바꿔 낸다. 영상이 판단 직전에 멈추고, 답과 확신도를 받아 간격 반복으로 다시 낸다.
 6. 내 게임: 녹화 에이전트(`agent/recorder.py`, 게임하는 PC에서 실행)가 롤 Live Client Data API로 게임을 감지해 자동 녹화하고 서버로 보낸다 → `server/mine.py`가 `vods/mine/<사용자>/<녹화>/`에 두고 지표를 계산 → 정글 판이면 `jungle-vod` 스킬 C로 분석. 판 전 목표(goals)를 분석에서 판정한다.
 7. 판 끝난 뒤 복기(`server/debrief.py`): 녹화가 들어오면 복기 시간(기본 10분)을 잠근다. 에이전트가 롤 클라이언트 로컬 API(LCU)로 그동안 큐를 취소하고, 데스크톱 앱이 복기 화면(`/debrief/:id`)을 띄운다. 사용자가 먼저 복기(데스 이유, 아쉬운 순간)하고, 분석이 합쳐지면 총평 담당 Claude(스킬 D '총평 담당')가 분석, 내 복기, 가까운 프로 판, 지난 복기 노트(`coach_context.md`)로 `coach`를 쓴다. `coach.lessons`는 내 복기 노트(DB `lessons`)에 쌓이고, 반복한 실수가 다음 총평과 목표 추천에 먼저 올라온다.
+8. 목표는 판을 넘어 이어진다(`mine.goal_progress`, 연속 `MASTER`=2판 지키면 총평의 `next_goal`로 바뀜). 판 중에는 데스크톱 오버레이(`desktop/overlay.html`, `/api/overlay`)가 목표를 띄운다. 복기 화면에서 그 판의 판단만 훈련(`/api/train/session?game=`), 훈련은 복기 노트와 목표의 유형을 먼저 낸다(`training.focus_categories`). 성장 지표는 `server/growth.py`(`/growth`).
+
+## 테스트
+- `tests/` (pytest, 임시 폴더의 vods/kb/DB로 돈다). 기능을 바꾸면 같이 고치고 `uv run --with pytest python -m pytest tests -q`. CI(`release.yml`)가 Windows에서 돌린다.
 
 ## 데이터
 - 사용자마다 다른 것(프로필, 풀이 기록, 간격 반복, 내 게임, 목표, 에이전트 토큰, 복기, 복기 노트)은 `data/app.db`(SQLite, `server/db.py`). 콘텐츠(분석, kb)는 파일. **실서비스 배포를 전제로 만든다**: 사용자를 하드코딩하지 않고, 사용자 데이터는 `user_id`로 나눈다.

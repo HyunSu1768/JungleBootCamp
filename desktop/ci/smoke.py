@@ -27,7 +27,7 @@ import server.app  # noqa: E402
 
 with TestClient(server.app.app) as c:
     for path in ("/api/app", "/api/me", "/api/train/overview", "/api/mine", "/api/goals", "/api/agent", "/api/kb", "/api/vods",
-                 "/api/debrief/active", "/api/lessons"):
+                 "/api/debrief/active", "/api/lessons", "/api/growth", "/api/overlay"):
         r = c.get(path)
         check(f"GET {path}", r.status_code == 200, str(r.status_code))
     r = c.get("/api/claude", params={"fresh": True})

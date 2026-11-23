@@ -305,8 +305,8 @@ export const api = {
   me: () => req<Profile>("/api/me"),
   saveMe: (p: Partial<Profile>) => req<Profile>("/api/me", { method: "PUT", body: JSON.stringify(p) }),
   trainOverview: () => req<TrainOverview>("/api/train/overview"),
-  trainSession: (n: number, category?: string | null, source = "all") =>
-    req<{ items: TrainItem[] }>(`/api/train/session?n=${n}&source=${source}${category ? `&category=${encodeURIComponent(category)}` : ""}`),
+  trainSession: (n: number, category?: string | null, source = "all", game?: string | null) =>
+    req<{ items: TrainItem[] }>(`/api/train/session?n=${n}&source=${source}${category ? `&category=${encodeURIComponent(category)}` : ""}${game ? `&game=${encodeURIComponent(game)}` : ""}`),
   agent: () => req<AgentInfo>("/api/agent"),
   agentToken: () => req<{ token: string }>("/api/agent/token", { method: "POST", body: "{}" }),
   revokeAgent: () => req("/api/agent/tokens", { method: "DELETE" }),
@@ -323,6 +323,7 @@ export const api = {
   saveSelfReview: (id: string, body: SelfReview) => req(`/api/debrief/${id}/self`, { method: "PUT", body: JSON.stringify(body) }),
   finishDebrief: (id: string) => req(`/api/debrief/${id}/done`, { method: "POST" }),
   lessons: () => req<Lesson[]>("/api/lessons"),
+  growth: () => req<Growth>("/api/growth"),
   deleteLesson: (id: number) => req(`/api/lessons/${id}`, { method: "DELETE" }),
   checkGoal: (id: number, followed: string, note?: string) => req(`/api/goals/${id}`, { method: "PUT", body: JSON.stringify({ followed, note }) }),
   appInfo: () => req<AppInfo>("/api/app"),
@@ -415,9 +416,12 @@ export interface AgentInfo {
   server: string;
   local_server: string;
 }
-export interface Goal { id: number; text: string; rule_id: string | null; game_id: string | null; followed: string | null; note: string | null; created: string; game_title?: string; played?: string }
+export interface Goal { id: number; text: string; rule_id: string | null; source?: string | null; game_id: string | null; followed: string | null; note: string | null; created: string; game_title?: string; played?: string }
+export interface GoalProgress { games: number; kept: number; streak: number; history: (string | null)[]; mastered: boolean; need: number }
 export interface Goals {
   active: Goal | null;
+  progress: GoalProgress | null;
+  coach_next: { text: string; rule_id: string | null; why?: string | null } | null;
   history: Goal[];
   suggestions: { rule_id: string | null; category: string | null; when: string; then: string; why: string | null }[];
 }
@@ -465,11 +469,27 @@ export interface DebriefDetail extends MyGame {
   coach: Coach | null;
   next_goal: Analysis["next_goal"] | null;
   goal_check: GoalCheck | null;
+  game_ref: string;
+  drills: number;
+  drills_bad: number;
 }
 export interface Lesson {
   id: number; kind: "mistake" | "strength"; category: string | null; title: string; when_text: string | null; then_text: string | null;
   rule_id: string | null; created: string; updated: string; games: number; again: number; better: number;
   trend: string[]; hits: { game_id: string; outcome: string; t: string | null; ref: string | null; note: string | null; game_title?: string; played?: string }[];
+}
+/* ---------- 성장 ---------- */
+export interface GrowthGame { id: string; played: string; champion: string | null; result: string | null; role: string | null; analyzed: boolean;
+  good: number; bad: number; accuracy: number | null; goal: string | null; again: number; better: number; first: number; cs10: number | null; deaths14: number | null }
+export interface GrowthCategory { category: string; game_n: number; game_rate: number | null; train_n: number; train_rate: number | null }
+export interface Growth {
+  games: GrowthGame[];
+  accuracy: { recent: number | null; before: number | null; recent_n: number; before_n: number };
+  goal_rate: number | null; goal_n: number;
+  lessons: { fixed: string[]; repeating: string[]; total: number };
+  categories: GrowthCategory[]; weakest: GrowthCategory | null;
+  train_weeks: { week: string; n: number; rate: number }[];
+  metrics: { cs10: { recent: number | null; before: number | null }; deaths14: { recent: number | null; before: number | null } };
 }
 export interface MyGameDetail extends MyGame, Omit<GameDetail, "analysis"> { analysis: Analysis | null }
 export interface MyStats {
@@ -478,7 +498,7 @@ export interface MyStats {
 }
 
 /* ---------- 앱, Claude 연결 ---------- */
-export interface DeviceSettings { recording: boolean; screen: string; audio: string | null; onboarded: boolean; analysis?: "fast" | "deep" }
+export interface DeviceSettings { recording: boolean; screen: string; audio: string | null; onboarded: boolean; analysis?: "fast" | "deep"; overlay?: boolean }
 export interface AppInfo {
   version: string;
   desktop: boolean;

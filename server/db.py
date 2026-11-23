@@ -132,6 +132,10 @@ SCHEMA = [
     );
     CREATE INDEX lesson_hits_lesson ON lesson_hits(lesson_id);
     """,
+    # v4: 목표는 지킬 때까지 이어진다 (user 직접 | coach 총평 추천 | carry 지난 판에서 이어짐)
+    """
+    ALTER TABLE goals ADD COLUMN source TEXT;
+    """,
 ]
 
 _lock = threading.Lock()

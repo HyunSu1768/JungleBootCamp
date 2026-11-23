@@ -16,10 +16,12 @@ import Mine from "./pages/Mine";
 import Welcome from "./pages/Welcome";
 import SettingsPage from "./pages/Settings";
 import Debrief, { clock, useRemaining } from "./pages/Debrief";
+import GrowthPage from "./pages/Growth";
 
 const TABS = [
   { to: "/", label: "훈련", end: true },
   { to: "/mine", label: "내 게임" },
+  { to: "/growth", label: "성장" },
   { to: "/vods", label: "프로 영상" },
   { to: "/concepts", label: "지식" },
 ];
@@ -128,6 +130,7 @@ export default function App() {
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/mine/:id" element={<GamePage />} />
           <Route path="/debrief/:id" element={<Debrief />} />
+          <Route path="/growth" element={<GrowthPage />} />
           <Route path="/add" element={<AddVod />} />
           <Route path="/vods/:dir" element={<VodPage />} />
           <Route path="/vods/:dir/:n" element={<GamePage />} />

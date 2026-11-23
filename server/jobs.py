@@ -389,6 +389,9 @@ class JobQueue:
         gc = a.get("goal_check") or {}
         if goal and gc.get("followed") in ("yes", "partial", "no", "na") and not goal[0].get("followed"):
             db.x("UPDATE goals SET followed = ?, note = ? WHERE id = ?", (gc["followed"], gc.get("evidence"), goal[0]["id"]))
+        from .mine import after_goal_check
+        if user:
+            after_goal_check(user[0]["id"])
 
     async def _coach(self, job: Job) -> None:
         """판 전체 총평: 분석, 내가 먼저 한 복기, 가까운 프로 판, 지난 복기 노트를 보고 쓴다. 결과의 lessons는 복기 노트에 쌓인다"""
@@ -435,6 +438,8 @@ class JobQueue:
             a["next_goal"] = data["next_goal"]
         out.write_text(json.dumps(a, ensure_ascii=False, indent=1))
         n = debrief.ingest(uid, gid, data["coach"])
+        from .mine import after_goal_check
+        after_goal_check(uid)  # 목표가 없으면 이번 총평의 다음 목표로, 지금 목표를 다 익혔으면 다음으로
         self.log(job, f"복기 노트에 {n}개를 쌓았어요")
         ng = a.get("next_goal") or {}
         job.summary = (data["coach"].get("headline") or "") + (f"\n다음 목표: {ng.get('when')} → {ng.get('then')}" if ng else "")
